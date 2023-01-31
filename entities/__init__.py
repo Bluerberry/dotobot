@@ -1,2 +1,2 @@
 from .base import db
-from . import quote
+from . import quote, cog, user

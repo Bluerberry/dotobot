@@ -3,8 +3,18 @@ from logging import config
 
 from os import getenv, listdir
 from dotenv import load_dotenv
+
 load_dotenv()
 
+# configure database
+from entities import db
+
+db.bind(provider='postgres', user=getenv('DB_USER'), password=getenv('DB_PASSWORD'),
+        host=getenv('DB_HOST'), port=getenv('DB_PORT'), database=getenv('DB_NAME'))
+db.generate_mapping(check_tables=True, create_tables=True)
+
+
+# Discord setup
 import discord
 from discord.ext import commands
 from discord import ExtensionAlreadyLoaded, ExtensionNotLoaded, ExtensionNotFound
