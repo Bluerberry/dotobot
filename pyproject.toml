@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "dotobot-v5"
+version = "0.1.0"
+description = ""
+authors = ["authors?"]
+readme = "README.md"
+packages = [{include = "dotobot_v5"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pony = "^0.7.16"
+py-cord = "^2.3.2"
+python-dotenv = "^0.21.1"
+discord-pretty-help = "^2.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
