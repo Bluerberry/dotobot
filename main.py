@@ -1,33 +1,31 @@
-
-# Logging setup
 import logging
 from logging import config
 
-from entities import db
-
-config.fileConfig('log.conf')
-logger = logging.getLogger('root')
-
-# Environment setup
-import os
+from os import getenv
 from dotenv import load_dotenv
 load_dotenv()
 
-# Discord setup
 import discord
+from discord.ext import commands
 
-intents = discord.Intents.default()
-intents.message_content = True
-client = discord.Client(intents = intents)
+# ---------------------> Logging setup
 
-@client.event
+config.fileConfig('log.conf')
+log = logging.getLogger('root')
+
+# ---------------------> Bot setup
+
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix = '$', intents = intents)
+
+@bot.event
 async def on_ready():
-    logger.info(f'Succesful login as {client.user}')
+    log.info(f'Succesful login as {bot.user}')
 
-@client.event
-async def on_message(msg):
-    if msg.content == 'ping':
-        await msg.channel.send('pong')
-        logger.info(f'{msg.author} played a match of ping-pong!')
+# ---------------------> Main
 
-client.run(os.getenv('DISCORD_TOKEN'))
+if __name__ == '__main__':
+
+    from cogs.example_cog import Example # TODO anything but this
+    bot.add_cog(Example(bot))
+    bot.run(getenv('DISCORD_TOKEN'))
