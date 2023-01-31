@@ -3,6 +3,8 @@
 import logging
 from logging import config
 
+from entities import db
+
 config.fileConfig('log.conf')
 logger = logging.getLogger('root')
 
