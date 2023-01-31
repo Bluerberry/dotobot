@@ -12,6 +12,7 @@ pony = "^0.7.16"
 py-cord = "^2.3.2"
 python-dotenv = "^0.21.1"
 discord-pretty-help = "^2.0.0"
+psycopg2 = "^2.9.5"
 
 
 [build-system]
