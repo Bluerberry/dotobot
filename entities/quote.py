@@ -9,3 +9,6 @@ class Quote(db.Entity):
     author = Required(str)
     quote = Required(str)
     author_discord_id = Optional(int, size=64)
+
+    def __str__(self) -> str:
+        return f"{self.quote_id}: \"{self.quote}\" - {self.author}"
