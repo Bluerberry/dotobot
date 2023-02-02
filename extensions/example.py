@@ -1,15 +1,15 @@
-import logging
-from logging import config
 
 from os.path import basename
-from discord.ext import commands
+name = basename(__file__)[:-2]
 
 # ---------------------> Logging setup
 
-name = basename(__file__)[:-2]
+import logging
 log = logging.getLogger(name)
 
 # ---------------------> Example cog
+
+from discord.ext import commands
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(Example(bot))
