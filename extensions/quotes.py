@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from entities import Quote
 from os.path import basename
-from pony.orm import db_session, max as pony_max, select
+from pony.orm import db_session, max as pony_max, select, get
 from pony.orm.core import desc
 import discord
 from discord import Colour
@@ -123,3 +123,32 @@ class Quotes(commands.Cog, name=name, description='Manages the quotes'):
         quotes.reverse()
 
         await self.mass_quote(ctx, quotes)
+
+    @q.command(aliases=['change'], brief='Edit a quote',
+               description='Either replace a quote completely, only the author, or just the quote.',
+               usage='[quote id] (author/quote) "[quote]" - [author]')
+    @commands.has_permissions(administrator=True)
+    async def edit(self, ctx: commands.Context, *args) -> None:
+        try:
+            index = str(int(args[0]))  # check for impostor aka strings
+        except ValueError:
+            log.warning(f'Quote edit could not find a quote in the database with key: {args[0]}')
+            await ctx.send(f'Could not find {args[0]} in the database')
+            return
+        request, guild_id = args[1], str(ctx.guild.id)
+
+        with db_session:
+            quote = get(quote for quote in Quote if quote.quote_id == index and guild_id == guild_id)
+            if quote is None:
+                await ctx.send(f'Quote id not found {index} in the database')
+
+            if request == 'author':
+                quote.author = ' '.join(args[2:])
+            elif request == 'quote':
+                quote.quote = ' '.join(args[2:]).lstrip('"').rstrip('"')
+            else:
+                quote_string, author = split_quote(' '.join(ctx.message.content.split()[3:]))
+                quote.quote, quote.author = quote_string, author
+
+        await ctx.send(str(quote))
+
