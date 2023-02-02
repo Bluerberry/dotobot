@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from entities import Quote
 from os.path import basename
 from pony.orm import db_session, max as pony_max, select
-from pony.orm.core import Query
+from pony.orm.core import desc
 import discord
 from discord import Colour
 from discord.ext import commands
@@ -43,7 +43,7 @@ class Quotes(commands.Cog, name=name, description='Manages the quotes'):
         start_value: int
         end_value: int
 
-    async def mass_quote(self, ctx: commands.Context, quotes: Query):
+    async def mass_quote(self, ctx: commands.Context, quotes: list[Quote]):
         if quotes is None or len(quotes) == 0:
             return await ctx.send(
                 embed=discord.Embed(title="No quotes could be found",
@@ -106,5 +106,20 @@ class Quotes(commands.Cog, name=name, description='Manages the quotes'):
     @q.command(brief='Return all quotes', description='Return all quotes', usage='')
     async def all(self, ctx: commands.Context) -> None:
         with db_session:
-            quotes = select(quote for quote in Quote if quote.guild_id == ctx.guild.id).order_by(Quote.quote_id)
-            await self.mass_quote(ctx, quotes)
+            quotes = select(quote for quote in Quote if quote.guild_id == ctx.guild.id).order_by(Quote.quote_id)[:]
+        await self.mass_quote(ctx, quotes)
+
+    @q.command(brief='Return the last few quotes', description='Return the last x quotes', usage='(amount)')
+    async def last(self, ctx: commands.Context, arg: int = 10):
+        try:
+            arg = int(arg)
+        except ValueError:
+            arg = 10
+
+        with db_session:
+            quotes = select(quote for quote in Quote if quote.guild_id == ctx.guild.id)\
+                .order_by(desc(Quote.quote_id))\
+                .limit(arg)[:]
+        quotes.reverse()
+
+        await self.mass_quote(ctx, quotes)
