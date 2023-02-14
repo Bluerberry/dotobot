@@ -1,18 +1,18 @@
 
-import util
+import logging
 from os.path import basename
 
-name = basename(__file__)[:-2]
+from discord import ExtensionAlreadyLoaded, ExtensionNotFound, ExtensionNotLoaded
+from discord.ext import commands
+
+import util
 
 # ---------------------> Logging setup
 
-import logging
+name = basename(__file__)[:-2]
 log = logging.getLogger(name)
 
 # ---------------------> System cog
-
-from discord import ExtensionAlreadyLoaded, ExtensionNotLoaded, ExtensionNotFound
-from discord.ext import commands
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(System(bot))
@@ -23,21 +23,21 @@ def teardown(bot: commands.Bot) -> None:
     log.info(f'Extension has been destroyed: {name}')
 
 
-class System(commands.Cog, name = name, description = 'Controls internal functionality'):
+class System(commands.Cog, name=name, description='Controls internal functionality'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
     
-    @commands.command(name = 'load')
+    @commands.command(name='load')
     @util.extract_flags()
-    async def load(self, ctx: commands.Context, flags, params) -> None:
+    async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         # Preperations
-        total: int = 0
-        success: int = 0
-        summary: str = ''
+        total   = 0
+        success = 0
+        summary = ''
 
         if not params or 'all' in flags:
-            params = list(self.bot.extensions.keys())
+            params = util.yield_extensions(prefix_path=True)
         else:
             params = map(util.extension_path, params)
 
@@ -76,20 +76,20 @@ class System(commands.Cog, name = name, description = 'Controls internal functio
 
             if 'verbose' in flags:
                 embed = util.default_embed(self.bot, 'Summary', status)
-                embed.add_field(name = 'Extensions', value = f'```{summary}```')
-                await ctx.reply(embed = embed, mention_author = False)
+                embed.add_field(name='Extensions', value=f'```{summary}```')
+                await ctx.reply(embed=embed, mention_author=False)
             else:
-                await ctx.reply(status, mention_author = False)
+                await ctx.reply(status, mention_author=False)
 
 
-    @commands.command(name = 'unload')
+    @commands.command(name='unload')
     @util.extract_flags()
-    async def unload(self, ctx: commands.Context, flags, params) -> None:
+    async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         # Preperations
-        total: int = 0
-        success: int = 0
-        summary: str = ''
+        total   = 0
+        success = 0
+        summary = ''
 
         if not params or 'all' in flags:
             params = list(self.bot.extensions.keys())
@@ -134,20 +134,20 @@ class System(commands.Cog, name = name, description = 'Controls internal functio
 
             if 'verbose' in flags:
                 embed = util.default_embed(self.bot, 'Summary', status)
-                embed.add_field(name = 'Extensions', value = f'```{summary}```')
-                await ctx.reply(embed = embed, mention_author = False)
+                embed.add_field(name='Extensions', value=f'```{summary}```')
+                await ctx.reply(embed=embed, mention_author=False)
             else:
-                await ctx.reply(status, mention_author = False)
+                await ctx.reply(status, mention_author=False)
 
 
-    @commands.command(name = 'reload')
+    @commands.command(name='reload')
     @util.extract_flags()
-    async def reload(self, ctx: commands.Context, flags, params) -> None:
+    async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         # Preperations
-        total: int = 0
-        success: int = 0
-        summary: str = ''
+        total   = 0
+        success = 0
+        summary = ''
 
         if not params or 'all' in flags:
             params = list(self.bot.extensions.keys())
@@ -189,7 +189,7 @@ class System(commands.Cog, name = name, description = 'Controls internal functio
 
             if 'verbose' in flags:
                 embed = util.default_embed(self.bot, 'Summary', status)
-                embed.add_field(name = 'Extensions', value = f'```{summary}```')
-                await ctx.reply(embed = embed, mention_author = False)
+                embed.add_field(name='Extensions', value=f'```{summary}```')
+                await ctx.reply(embed=embed, mention_author=False)
             else:
-                await ctx.reply(status, mention_author = False)
+                await ctx.reply(status, mention_author=False)

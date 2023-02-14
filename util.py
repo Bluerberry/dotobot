@@ -2,13 +2,14 @@
 import re as regex
 from glob import iglob
 from os.path import join
+from typing import Generator
 
 import discord
 from discord.ext import commands
 
 # Wraps around commands to split args into flags and params.
-#  - func MUST follow async (self, ctx, flags, params) -> Any
-#  - decorator should be placed below @bot.command() decorator
+#   - func MUST follow async (self, ctx, flags, params) -> Any
+#   - decorator should be placed below @bot.command() decorator
 
 def extract_flags():
     def wrapper(func):
@@ -17,8 +18,8 @@ def extract_flags():
             params = []
 
             for arg in list(args):
-                if arg.startswith('--'):
-                    flags.append(arg[2:])
+                if arg.startswith('-'):
+                    flags.append(arg[1:])
                 else:
                     params.append(arg)
 
@@ -31,9 +32,9 @@ def extract_flags():
 #   - prefix_path toggles prefixing with extension path     default is False
 #   - recursive toggles recursive search                    default is True
 
-def yield_extensions(path: str = 'extensions', prefix_path: bool = False, recursive: bool = True):
+def yield_extensions(path: str = 'extensions', prefix_path: bool = False, recursive: bool = True) -> Generator[str, None, None]:
     path = join(path, '**\\*.py' if recursive else '*.py')             # Build path dependent on requirements
-    for file in iglob(path, recursive = recursive):                    # Use iglob to match all python files
+    for file in iglob(path, recursive=recursive):                      # Use iglob to match all python files
         components = regex.findall(r'\w+', file)[:-1]                  # Split into components and trim extension
         yield '.'.join(components) if prefix_path else components[-1]  # Either return import path or extension name
 
@@ -44,10 +45,10 @@ def yield_extensions(path: str = 'extensions', prefix_path: bool = False, recurs
 
 def extension_path(extension: str, path: str = 'extensions', recursive: bool = True) -> str:
     path = join(path, '**' if recursive else '', f'{extension_name(extension)}.py')  # Build path dependent on requirement
-    for file in iglob(path, recursive = recursive):                                  # Use iglob to match all python files
+    for file in iglob(path, recursive=recursive):                                    # Use iglob to match all python files
         components = regex.findall(r'\w+', file)[:-1]                                # Split into components and trim extension
         return '.'.join(components)                                                  # Return full extension path
-    return extension                                                                 # If not found return extensio
+    return extension                                                                 # If not found return extension
 
 # Returns extension name from extension path
 #   - extension_path contains path to extension with `.` seperation
@@ -57,12 +58,9 @@ def extension_name(extension_path: str) -> str:
 
 # Returns default, empty embed.
 #   - title & description are header strings                default is empty
-#   - author toggles author                                 default is false
-#   - footer toggles footer                                 default is true
+#   - author toggles author                                 default is False
+#   - footer toggles footer                                 default is True
 #   - color loops through rainbow color palette             default is red
-
-import discord
-from discord.ext import commands
 
 def default_embed(bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> discord.Embed:
     palette = [
@@ -74,9 +72,9 @@ def default_embed(bot: commands.Bot, title: str = '', description: str = '', aut
     ]
     
     embed = discord.Embed(
-        title = title,
-        description = description,
-        color = palette[color % 5]
+        title=title,
+        description=description,
+        color=palette[color % 5]
     )
 
     if author:
