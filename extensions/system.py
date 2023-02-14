@@ -1,5 +1,5 @@
 
-from util import extract_flags, yield_extensions
+import util
 from os.path import basename
 
 name = basename(__file__)[:-2]
@@ -18,15 +18,17 @@ def setup(bot: commands.Bot) -> None:
     bot.add_cog(System(bot))
     log.info(f'Extension has been created: {name}')
 
+
 def teardown(bot: commands.Bot) -> None:
     log.info(f'Extension has been destroyed: {name}')
+
 
 class System(commands.Cog, name = name, description = 'Controls internal functionality'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
     
     @commands.command(name = 'load')
-    @extract_flags()
+    @util.extract_flags()
     async def load(self, ctx: commands.Context, flags, params) -> None:
 
         # Preperations
@@ -35,47 +37,51 @@ class System(commands.Cog, name = name, description = 'Controls internal functio
         summary: str = ''
 
         if not params or 'all' in flags:
-            params = yield_extensions('extensions')
+            params = util.yield_extensions('extensions')
 
         # Load extensions
         for ext in params:
 
             try:
                 self.bot.load_extension('extensions.' + ext)
-                summary += f'🟢 {ext} sucessfully loaded\n'
+                summary += f'🟢 {ext.capitalize()} sucessfully loaded\n'
 
             except ExtensionAlreadyLoaded as err:
                 log.warning(err)
-                summary += f'🟡 {ext} was already loaded\n'
+                summary += f'🟡 {ext.capitalize()} was already loaded\n'
 
             except ExtensionNotFound as err:
                 log.warning(err)
-                summary += f'🟠 {ext} doesn\'t exist\n'
+                summary += f'🟠 {ext.capitalize()} doesn\'t exist\n'
 
             except Exception as err:
                 log.error(err)
-                summary += f'🔴 {ext} failed to load\n'
+                summary += f'🔴 {ext.capitalize()} failed to load\n'
 
             else:
                 success += 1
             finally:
                 total += 1
 
-        # TODO Maybe use discord pages for a nicer interface
         # Feedback
         if 'silent' not in flags:
             if total == 0:
-                await ctx.channel.send(f'No extensions have loaded')
-                return
-            if 'verbose' in flags:
-                await ctx.channel.send(f'```{summary}```')
-            if success == total:
-                await ctx.channel.send(f'All extensions have loaded')
+                status = 'No extensions have loaded'
+            elif total == success:
+                status = 'All extensions have loaded'
             else:
-                await ctx.channel.send(f'{success} out of {total} extensions have loaded')
+                status = f'{success} out of {total} extensions have loaded'
+
+            if 'verbose' in flags:
+                embed = util.default_embed(self.bot, 'Summary', status)
+                embed.add_field(name = 'Extensions', value = f'```{summary}```')
+                await ctx.reply(embed = embed, mention_author = False)
+            else:
+                await ctx.reply(status, mention_author = False)
+
 
     @commands.command(name = 'unload')
-    @extract_flags()
+    @util.extract_flags()
     async def unload(self, ctx: commands.Context, flags, params) -> None:
 
         # Preperations
@@ -91,45 +97,47 @@ class System(commands.Cog, name = name, description = 'Controls internal functio
             
             total += 1
             if ext == 'system':
-                summary += f'🔴 {ext} failed to unload\n'
-                if 'silent' not in flags:
-                    await ctx.channel.send('I wouldn\'t unload `system` if I were you')
+                summary += f'🔴 {ext.capitalize()} should\'nt unload\n'
                 continue
 
             try:
                 self.bot.unload_extension('extensions.' + ext)
-                summary += f'🟢 {ext} sucessfully unloaded\n'
+                summary += f'🟢 {ext.capitalize()} sucessfully unloaded\n'
 
             except ExtensionNotLoaded as err:
                 log.warning(err)
-                summary += f'🟡 {ext} was already unloaded\n'
+                summary += f'🟡 {ext.capitalize()} was already unloaded\n'
 
             except ExtensionNotFound as err:
                 log.warning(err)
-                summary += f'🟠 {ext} doesn\'t exist\n'
+                summary += f'🟠 {ext.capitalize()} doesn\'t exist\n'
 
             except Exception as err:
                 log.error(err)
-                summary += f'🔴 {ext} failed to unload\n'
+                summary += f'🔴 {ext.capitalize()} failed to unload\n'
 
             else:
                 success += 1
 
-        # TODO Maybe use discord pages for a nicer interface
         # Feedback
         if 'silent' not in flags:
             if total == 0:
-                await ctx.channel.send(f'No extensions have unloaded')
-                return
-            if 'verbose' in flags:
-                await ctx.channel.send(f'```{summary}```')
-            if success == total:
-                await ctx.channel.send(f'All extensions have unloaded')
+                status = 'No extensions have unloaded'
+            elif total == success:
+                status = 'All extensions have unloaded'
             else:
-                await ctx.channel.send(f'{success} out of {total} extensions have unloaded')
+                status = f'{success} out of {total} extensions have unloaded'
+
+            if 'verbose' in flags:
+                embed = util.default_embed(self.bot, 'Summary', status)
+                embed.add_field(name = 'Extensions', value = f'```{summary}```')
+                await ctx.reply(embed = embed, mention_author = False)
+            else:
+                await ctx.reply(status, mention_author = False)
+
 
     @commands.command(name = 'reload')
-    @extract_flags()
+    @util.extract_flags()
     async def reload(self, ctx: commands.Context, flags, params) -> None:
 
         # Preperations
@@ -145,34 +153,37 @@ class System(commands.Cog, name = name, description = 'Controls internal functio
 
             try:
                 self.bot.reload_extension('extensions.' + ext)
-                summary += f'🟢 {ext} sucessfully reloaded\n'
+                summary += f'🟢 {ext.capitalize()} sucessfully reloaded\n'
 
             except ExtensionNotLoaded as err:
                 log.warning(err)
-                summary += f'🟡 {ext} wasn\'t loaded\n'
+                summary += f'🟡 {ext.capitalize()} wasn\'t loaded\n'
 
             except ExtensionNotFound as err:
                 log.warning(err)
-                summary += f'🟠 {ext} doesn\'t exist\n'
+                summary += f'🟠 {ext.capitalize()} doesn\'t exist\n'
 
             except Exception as err:
                 log.error(err)
-                summary += f'🔴 {ext} failed to reload\n'
+                summary += f'🔴 {ext.capitalize()} failed to reload\n'
 
             else:
                 success += 1
             finally:
                 total += 1
 
-        # TODO Maybe use discord pages for a nicer interface
         # Feedback
         if 'silent' not in flags:
             if total == 0:
-                await ctx.channel.send(f'No extensions have reloaded')
-                return
-            if 'verbose' in flags:
-                await ctx.channel.send(f'```{summary}```')
-            if success == total:
-                await ctx.channel.send(f'All extensions have reloaded')
+                status = 'No extensions have reloaded'
+            elif total == success:
+                status = 'All extensions have reloaded'
             else:
-                await ctx.channel.send(f'{success} out of {total} extensions have reloaded')
+                status = f'{success} out of {total} extensions have reloaded'
+
+            if 'verbose' in flags:
+                embed = util.default_embed(self.bot, 'Summary', status)
+                embed.add_field(name = 'Extensions', value = f'```{summary}```')
+                await ctx.reply(embed = embed, mention_author = False)
+            else:
+                await ctx.reply(status, mention_author = False)
