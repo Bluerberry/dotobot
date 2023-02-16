@@ -7,19 +7,42 @@ from typing import Generator
 import discord
 from discord.ext import commands
 
+# ---------------------> Utility functions
+
 # Wraps around commands to split args into flags and params.
 #   - func MUST follow async (self, ctx, flags, params) -> Any
 #   - decorator should be placed below @bot.command() decorator
 
-def extract_flags():
+def extract_flags(blacklist: list[str] | None = None, whitelist: list[str] | None = None, **thesaurus: dict[str, list[str]]):
     def wrapper(func):
         async def wrapped(self, ctx, *args, **kwargs):
             flags  = []
             params = []
 
             for arg in list(args):
+
+                # Parse flag
                 if arg.startswith('-'):
-                    flags.append(arg[1:])
+                    flag = arg[1:]
+
+                    # Translate synonyms into default
+                    if flag not in thesaurus.keys():
+                        for default, synonyms in thesaurus.items():
+                            if flag in synonyms:
+                                flag = default
+                                break
+                    
+                    # Filter blacklisted flags
+                    if blacklist != None and flag in blacklist:
+                        continue
+
+                    # Filter non-whitelisted flags
+                    if whitelist != None and flag not in whitelist:
+                        continue
+
+                    flags.append(flag)
+                
+                # Parse parameter
                 else:
                     params.append(arg)
 

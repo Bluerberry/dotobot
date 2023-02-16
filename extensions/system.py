@@ -28,7 +28,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         self.bot = bot
     
     @commands.command(name='load')
-    @util.extract_flags()
+    @util.extract_flags(whitelist=['all', 'verbose', 'silent'], verbose=['v'], silent=['s'])
     async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         # Preperations
@@ -83,7 +83,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
 
     @commands.command(name='unload')
-    @util.extract_flags()
+    @util.extract_flags(whitelist=['all', 'verbose', 'silent'], verbose=['v'], silent=['s'])
     async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         # Preperations
@@ -141,7 +141,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
 
     @commands.command(name='reload')
-    @util.extract_flags()
+    @util.extract_flags(whitelist=['all', 'verbose', 'silent'], verbose=['v'], silent=['s'])
     async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         # Preperations
