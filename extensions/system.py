@@ -37,26 +37,28 @@ class System(commands.Cog, name = name, description = 'Controls internal functio
         summary: str = ''
 
         if not params or 'all' in flags:
-            params = util.yield_extensions('extensions')
+            params = list(self.bot.extensions.keys())
+        else:
+            params = map(util.extension_path, params)
 
         # Load extensions
         for ext in params:
 
             try:
-                self.bot.load_extension('extensions.' + ext)
-                summary += f'🟢 {ext.capitalize()} sucessfully loaded\n'
+                self.bot.load_extension(ext)
+                summary += f'🟢 {util.extension_name(ext).capitalize()} sucessfully loaded\n'
 
             except ExtensionAlreadyLoaded as err:
                 log.warning(err)
-                summary += f'🟡 {ext.capitalize()} was already loaded\n'
+                summary += f'🟡 {util.extension_name(ext).capitalize()} was already loaded\n'
 
             except ExtensionNotFound as err:
                 log.warning(err)
-                summary += f'🟠 {ext.capitalize()} doesn\'t exist\n'
+                summary += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
 
             except Exception as err:
                 log.error(err)
-                summary += f'🔴 {ext.capitalize()} failed to load\n'
+                summary += f'🔴 {util.extension_name(ext).capitalize()} failed to load\n'
 
             else:
                 success += 1
@@ -90,31 +92,33 @@ class System(commands.Cog, name = name, description = 'Controls internal functio
         summary: str = ''
 
         if not params or 'all' in flags:
-            params = [ext[11:] for ext in self.bot.extensions.keys()]
+            params = list(self.bot.extensions.keys())
+        else:
+            params = map(util.extension_path, params)
 
         # Unload extensions
         for ext in params:
             
             total += 1
-            if ext == 'system':
-                summary += f'🔴 {ext.capitalize()} should\'nt unload\n'
+            if util.extension_name(ext) == 'system':
+                summary += f'🔴 {util.extension_name(ext).capitalize()} should\'nt unload\n'
                 continue
 
             try:
-                self.bot.unload_extension('extensions.' + ext)
-                summary += f'🟢 {ext.capitalize()} sucessfully unloaded\n'
+                self.bot.unload_extension(ext)
+                summary += f'🟢 {util.extension_name(ext).capitalize()} sucessfully unloaded\n'
 
             except ExtensionNotLoaded as err:
                 log.warning(err)
-                summary += f'🟡 {ext.capitalize()} was already unloaded\n'
+                summary += f'🟡 {util.extension_name(ext).capitalize()} was already unloaded\n'
 
             except ExtensionNotFound as err:
                 log.warning(err)
-                summary += f'🟠 {ext.capitalize()} doesn\'t exist\n'
+                summary += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
 
             except Exception as err:
                 log.error(err)
-                summary += f'🔴 {ext.capitalize()} failed to unload\n'
+                summary += f'🔴 {util.extension_name(ext).capitalize()} failed to unload\n'
 
             else:
                 success += 1
@@ -146,26 +150,28 @@ class System(commands.Cog, name = name, description = 'Controls internal functio
         summary: str = ''
 
         if not params or 'all' in flags:
-            params = [ext[11:] for ext in self.bot.extensions.keys()]
+            params = list(self.bot.extensions.keys())
+        else:
+            params = map(util.extension_path, params)
 
         # Reload extensions
         for ext in params:
 
             try:
-                self.bot.reload_extension('extensions.' + ext)
-                summary += f'🟢 {ext.capitalize()} sucessfully reloaded\n'
+                self.bot.reload_extension(ext)
+                summary += f'🟢 {util.extension_name(ext).capitalize()} sucessfully reloaded\n'
 
             except ExtensionNotLoaded as err:
                 log.warning(err)
-                summary += f'🟡 {ext.capitalize()} wasn\'t loaded\n'
+                summary += f'🟡 {util.extension_name(ext).capitalize()} wasn\'t loaded\n'
 
             except ExtensionNotFound as err:
                 log.warning(err)
-                summary += f'🟠 {ext.capitalize()} doesn\'t exist\n'
+                summary += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
 
             except Exception as err:
                 log.error(err)
-                summary += f'🔴 {ext.capitalize()} failed to reload\n'
+                summary += f'🔴 {util.extension_name(ext).capitalize()} failed to reload\n'
 
             else:
                 success += 1

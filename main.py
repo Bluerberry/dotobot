@@ -39,7 +39,7 @@ async def on_ready() -> None:
 # ---------------------> Main
 
 if __name__ == '__main__':
-    for ext in yield_extensions('extensions', import_path = True):
+    for ext in yield_extensions(prefix_path = True):
         try:
             bot.load_extension(ext)
         except Exception as err:
