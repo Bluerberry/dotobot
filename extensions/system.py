@@ -31,7 +31,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     @util.dev_only()
     @commands.command(name='load', description='Loads extensions by name.')
     @util.default_command(thesaurus={'v': 'verbose', 's': 'silent'})
-    async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
+    async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
         # Prepare extension paths
         if not params or 'all' in flags:
@@ -47,6 +47,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             try:
                 self.bot.load_extension(ext)
                 summary += f'🟢 {util.extension_name(ext).capitalize()} sucessfully loaded\n'
+                success += 1
 
             except ExtensionAlreadyLoaded as err:
                 log.warning(err)
@@ -60,30 +61,29 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 log.error(err)
                 summary += f'🔴 {util.extension_name(ext).capitalize()} failed to load\n'
 
-            else:
-                success += 1
+        # Find status
+        if total := len(params) == 0:
+            status = 'No extensions have loaded'
+        elif total == success:
+            status = 'All extensions have loaded'
+        else:
+            status = f'{success} out of {total} extensions have loaded'
 
         # Feedback
-        if 'silent' not in flags:
-            if total := len(params) == 0:
-                status = 'No extensions have loaded'
-            elif total == success:
-                status = 'All extensions have loaded'
-            else:
-                status = f'{success} out of {total} extensions have loaded'
+        if 'verbose' not in flags and 'silent' not in flags:
+            await ctx.reply(status, mention_author=False)
 
-            if 'verbose' in flags:
-                embed = util.default_embed(self.bot, 'Summary', status)
-                embed.add_field(name='Extensions', value=f'```{summary}```')
-                await ctx.reply(embed=embed, mention_author=False)
-            else:
-                await ctx.reply(status, mention_author=False)
+        # Build embed
+        embed = util.default_embed(self.bot, 'Summary', status)
+        embed.add_field(name='Extensions', value=f'```{summary}```')
+
+        return embed
 
 
     @util.dev_only()
     @commands.command(name='unload', description='Unloads extensions by name')
     @util.default_command(thesaurus={'v': 'verbose', 's': 'silent'})
-    async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
+    async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
         # Prepare extension paths
         if not params or 'all' in flags:
@@ -103,6 +103,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             try:
                 self.bot.unload_extension(ext)
                 summary += f'🟢 {util.extension_name(ext).capitalize()} sucessfully unloaded\n'
+                success += 1
 
             except ExtensionNotLoaded as err:
                 log.warning(err)
@@ -114,32 +115,31 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
             except Exception as err:
                 log.error(err)
-                summary += f'🔴 {util.extension_name(ext).capitalize()} failed to unload\n'
+                summary += f'🔴 {util.extension_name(ext).capitalize()} failed to unload\n'                
 
-            else:
-                success += 1
+        # Find status
+        if total := len(params) == 0:
+            status = 'No extensions have unloaded'
+        elif total == success:
+            status = 'All extensions have unloaded'
+        else:
+            status = f'{success} out of {total} extensions have unloaded'
 
         # Feedback
-        if 'silent' not in flags:
-            if total := len(params) == 0:
-                status = 'No extensions have unloaded'
-            elif total == success:
-                status = 'All extensions have unloaded'
-            else:
-                status = f'{success} out of {total} extensions have unloaded'
+        if 'verbose' not in flags and 'silent' not in flags:
+            await ctx.reply(status, mention_author=False)
 
-            if 'verbose' in flags:
-                embed = util.default_embed(self.bot, 'Summary', status)
-                embed.add_field(name='Extensions', value=f'```{summary}```')
-                await ctx.reply(embed=embed, mention_author=False)
-            else:
-                await ctx.reply(status, mention_author=False)
+        # Build embed
+        embed = util.default_embed(self.bot, 'Summary', status)
+        embed.add_field(name='Extensions', value=f'```{summary}```')
+
+        return embed
 
 
     @util.dev_only()
     @commands.command(name='reload', description='Reloads extensions by name')
     @util.default_command(thesaurus={'v': 'verbose', 's': 'silent'})
-    async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
+    async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
         # Prepare extension paths
         if not params or 'all' in flags:
@@ -155,6 +155,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             try:
                 self.bot.reload_extension(ext)
                 summary += f'🟢 {util.extension_name(ext).capitalize()} sucessfully reloaded\n'
+                success += 1
 
             except ExtensionNotLoaded as err:
                 log.warning(err)
@@ -168,21 +169,20 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 log.error(err)
                 summary += f'🔴 {util.extension_name(ext).capitalize()} failed to reload\n'
 
-            else:
-                success += 1
+        # Find status
+        if total := len(params) == 0:
+            status = 'No extensions have reloaded'
+        elif total == success:
+            status = 'All extensions have reloaded'
+        else:
+            status = f'{success} out of {total} extensions have reloaded'
 
         # Feedback
-        if 'silent' not in flags:
-            if total := len(params) == 0:
-                status = 'No extensions have reloaded'
-            elif total == success:
-                status = 'All extensions have reloaded'
-            else:
-                status = f'{success} out of {total} extensions have reloaded'
+        if 'verbose' not in flags and 'silent' not in flags:
+            await ctx.reply(status, mention_author=False)
 
-            if 'verbose' in flags:
-                embed = util.default_embed(self.bot, 'Summary', status)
-                embed.add_field(name='Extensions', value=f'```{summary}```')
-                await ctx.reply(embed=embed, mention_author=False)
-            else:
-                await ctx.reply(status, mention_author=False)
+        # Build embed
+        embed = util.default_embed(self.bot, 'Summary', status)
+        embed.add_field(name='Extensions', value=f'```{summary}```')
+
+        return embed
