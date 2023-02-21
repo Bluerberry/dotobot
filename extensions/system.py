@@ -28,6 +28,14 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
     
+    @commands.command(name='summary', description='Provides summary of previous command.')
+    async def summary(ctx: commands.Context) -> None:
+        if (embed := util.summary.embed) == None:
+            log.warn('Failed to provide summary')
+            await ctx.reply('There is no summary to provide...', mention_author=False)
+        else:
+            await util.summary.ctx.reply(embed=embed, mention_author=False)
+
     @util.dev_only()
     @commands.command(name='load', description='Loads extensions by name.')
     @util.default_command(thesaurus={'a': 'all'})
@@ -81,7 +89,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
 
     @util.dev_only()
-    @commands.command(name='unload', description='Unloads extensions by name')
+    @commands.command(name='unload', description='Unloads extensions by name.')
     @util.default_command(thesaurus={'a': 'all'})
     async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
@@ -137,7 +145,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
 
     @util.dev_only()
-    @commands.command(name='reload', description='Reloads extensions by name')
+    @commands.command(name='reload', description='Reloads extensions by name.')
     @util.default_command(thesaurus={'a': 'all'})
     async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
