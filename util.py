@@ -25,9 +25,9 @@ def dev_only():
 #   - func MUST follow async (self, ctx, flags, params) -> Any
 #   - decorator should be placed below @bot.command() decorator
 
-def extract_flags(blacklist: list[str] | None = None, whitelist: list[str] | None = None, **thesaurus: dict[str, str]):
+def default_command(thesaurus: dict[str, str] = None):
     def wrapper(func):
-        async def wrapped(self, ctx, *args, **kwargs):
+        async def wrapped(self, ctx, *args, **_):
             flags  = []
             params = []
 
@@ -40,14 +40,6 @@ def extract_flags(blacklist: list[str] | None = None, whitelist: list[str] | Non
                     # Translate synonyms into default
                     if flag in thesaurus.keys():
                         flag = thesaurus[flag]
-                    
-                    # Filter blacklisted flags
-                    if blacklist != None and flag in blacklist:
-                        continue
-
-                    # Filter non-whitelisted flags
-                    if whitelist != None and flag not in whitelist:
-                        continue
 
                     flags.append(flag)
                 
@@ -58,6 +50,14 @@ def extract_flags(blacklist: list[str] | None = None, whitelist: list[str] | Non
             return await func(self, ctx, flags, params)
         return wrapped
     return wrapper
+
+# Returns default, empty embed.
+#   - title & description are header strings                default is empty
+#   - author toggles author                                 default is False
+#   - footer toggles footer                                 default is True
+#   - color loops through rainbow color palette             default is red
+
+def default_embed(bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> discord.Embed:
 
 # Yields all extension files in path.
 #   - sys_path contains path to extensions                  default is 'extensions'
@@ -87,14 +87,6 @@ def extension_path(extension: str, sys_path: str = 'extensions', recursive: bool
 
 def extension_name(extension_path: str) -> str:
     return extension_path.split('.')[-1]
-
-# Returns default, empty embed.
-#   - title & description are header strings                default is empty
-#   - author toggles author                                 default is False
-#   - footer toggles footer                                 default is True
-#   - color loops through rainbow color palette             default is red
-
-def default_embed(bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> discord.Embed:
     palette = [
         discord.Colour.from_rgb(255, 89,  94 ), # Red
         discord.Colour.from_rgb(255, 202, 58 ), # Yellow

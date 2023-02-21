@@ -2,6 +2,7 @@
 import logging
 from os.path import basename
 
+import discord
 from discord import ExtensionAlreadyLoaded, ExtensionNotFound, ExtensionNotLoaded
 from discord.ext import commands
 
@@ -29,7 +30,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     
     @util.dev_only()
     @commands.command(name='load', description='Loads extensions by name.')
-    @util.extract_flags(whitelist=['all', 'verbose', 'silent'], verbose=['v'], silent=['s'])
+    @util.default_command(thesaurus={'v': 'verbose', 's': 'silent'})
     async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         # Prepare extension paths
@@ -81,7 +82,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
     @util.dev_only()
     @commands.command(name='unload', description='Unloads extensions by name')
-    @util.extract_flags(whitelist=['all', 'verbose', 'silent'], verbose=['v'], silent=['s'])
+    @util.default_command(thesaurus={'v': 'verbose', 's': 'silent'})
     async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         # Prepare extension paths
@@ -136,8 +137,8 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
 
     @util.dev_only()
-    @commands.command(name='reload' description='Reloads extensions by name')
-    @util.extract_flags(whitelist=['all', 'verbose', 'silent'], verbose=['v'], silent=['s'])
+    @commands.command(name='reload', description='Reloads extensions by name')
+    @util.default_command(thesaurus={'v': 'verbose', 's': 'silent'})
     async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         # Prepare extension paths
