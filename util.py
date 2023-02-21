@@ -30,10 +30,17 @@ def dev_only():
     return commands.check(predicate)
 
 # Wraps around commands to split args into flags and params.
+#   - thesaurus contains flag synonyms
 #   - func MUST follow async (self, ctx, flags, params) -> discord.Embed
 #   - decorator should be placed below @bot.command() decorator
 
-def default_command(thesaurus: dict[str, str] = None):
+def default_command(thesaurus: dict[str, str] = {}):
+
+    # Update default with thesaurus
+    temp = {'s': 'summary', 'q': 'quiet'}
+    temp.update(thesaurus)
+    thesaurus = temp
+
     def wrapper(func):
         async def wrapped(self, ctx, *args, **_):
             flags  = []
@@ -44,11 +51,8 @@ def default_command(thesaurus: dict[str, str] = None):
                 # Parse flag
                 if arg.startswith('-'):
                     flag = arg[1:]
-
-                    # Translate synonyms into default
                     if flag in thesaurus.keys():
                         flag = thesaurus[flag]
-
                     flags.append(flag)
                 
                 # Parse parameter
@@ -59,9 +63,9 @@ def default_command(thesaurus: dict[str, str] = None):
             summary.embed = await func(self, ctx, flags, params)
             summary.ctx = ctx
 
-            if 'verbose' in flags and 'silent' not in flags:
+            if 'summary' in flags and 'quiet' not in flags:
                 await ctx.reply(embed=summary.embed, mention_author=False)
-                
+
         return wrapped
     return wrapper
 

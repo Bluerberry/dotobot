@@ -30,7 +30,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     
     @util.dev_only()
     @commands.command(name='load', description='Loads extensions by name.')
-    @util.default_command(thesaurus={'v': 'verbose', 's': 'silent'})
+    @util.default_command(thesaurus={'a': 'all'})
     async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
         # Prepare extension paths
@@ -70,7 +70,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             status = f'{success} out of {total} extensions have loaded'
 
         # Feedback
-        if 'verbose' not in flags and 'silent' not in flags:
+        if 'summary' not in flags and 'quiet' not in flags:
             await ctx.reply(status, mention_author=False)
 
         # Build embed
@@ -82,7 +82,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
     @util.dev_only()
     @commands.command(name='unload', description='Unloads extensions by name')
-    @util.default_command(thesaurus={'v': 'verbose', 's': 'silent'})
+    @util.default_command(thesaurus={'a': 'all'})
     async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
         # Prepare extension paths
@@ -126,7 +126,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             status = f'{success} out of {total} extensions have unloaded'
 
         # Feedback
-        if 'verbose' not in flags and 'silent' not in flags:
+        if 'summary' not in flags and 'quiet' not in flags:
             await ctx.reply(status, mention_author=False)
 
         # Build embed
@@ -138,7 +138,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
     @util.dev_only()
     @commands.command(name='reload', description='Reloads extensions by name')
-    @util.default_command(thesaurus={'v': 'verbose', 's': 'silent'})
+    @util.default_command(thesaurus={'a': 'all'})
     async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
         # Prepare extension paths
@@ -178,7 +178,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             status = f'{success} out of {total} extensions have reloaded'
 
         # Feedback
-        if 'verbose' not in flags and 'silent' not in flags:
+        if 'summary' not in flags and 'quiet' not in flags:
             await ctx.reply(status, mention_author=False)
 
         # Build embed
