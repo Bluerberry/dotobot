@@ -27,22 +27,21 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
     
-    @commands.command(name='load')
+    @util.dev_only()
+    @commands.command(name='load', description='Loads extensions by name.')
     @util.extract_flags(whitelist=['all', 'verbose', 'silent'], verbose=['v'], silent=['s'])
     async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
-        # Preperations
-        total   = 0
-        success = 0
-        summary = ''
-
+        # Prepare extension paths
         if not params or 'all' in flags:
             params = util.yield_extensions(prefix_path=True)
         else:
             params = map(util.extension_path, params)
 
         # Load extensions
-        for ext in params:
+        success = 0
+        summary = ''
+        for ext in params: 
 
             try:
                 self.bot.load_extension(ext)
@@ -62,12 +61,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
             else:
                 success += 1
-            finally:
-                total += 1
 
         # Feedback
         if 'silent' not in flags:
-            if total == 0:
+            if total := len(params) == 0:
                 status = 'No extensions have loaded'
             elif total == success:
                 status = 'All extensions have loaded'
@@ -82,24 +79,22 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 await ctx.reply(status, mention_author=False)
 
 
-    @commands.command(name='unload')
+    @util.dev_only()
+    @commands.command(name='unload', description='Unloads extensions by name')
     @util.extract_flags(whitelist=['all', 'verbose', 'silent'], verbose=['v'], silent=['s'])
     async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
-        # Preperations
-        total   = 0
-        success = 0
-        summary = ''
-
+        # Prepare extension paths
         if not params or 'all' in flags:
             params = list(self.bot.extensions.keys())
         else:
             params = map(util.extension_path, params)
 
         # Unload extensions
+        success = 0
+        summary = ''
         for ext in params:
             
-            total += 1
             if util.extension_name(ext) == 'system':
                 summary += f'🔴 {util.extension_name(ext).capitalize()} should\'nt unload\n'
                 continue
@@ -125,7 +120,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
         # Feedback
         if 'silent' not in flags:
-            if total == 0:
+            if total := len(params) == 0:
                 status = 'No extensions have unloaded'
             elif total == success:
                 status = 'All extensions have unloaded'
@@ -140,21 +135,20 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 await ctx.reply(status, mention_author=False)
 
 
-    @commands.command(name='reload')
+    @util.dev_only()
+    @commands.command(name='reload' description='Reloads extensions by name')
     @util.extract_flags(whitelist=['all', 'verbose', 'silent'], verbose=['v'], silent=['s'])
     async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
-        # Preperations
-        total   = 0
-        success = 0
-        summary = ''
-
+        # Prepare extension paths
         if not params or 'all' in flags:
             params = list(self.bot.extensions.keys())
         else:
             params = map(util.extension_path, params)
 
         # Reload extensions
+        success = 0
+        summary = ''
         for ext in params:
 
             try:
@@ -175,12 +169,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
             else:
                 success += 1
-            finally:
-                total += 1
 
         # Feedback
         if 'silent' not in flags:
-            if total == 0:
+            if total := len(params) == 0:
                 status = 'No extensions have reloaded'
             elif total == success:
                 status = 'All extensions have reloaded'

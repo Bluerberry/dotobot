@@ -1,19 +1,31 @@
 
 import re as regex
 from glob import iglob
+from os import getenv
 from os.path import join
 from typing import Generator
 
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------------> Utility functions
+
+# Wraps around commands to make it dev only
+#   - decorator should be placed above @bot.command() decorator
+
+def dev_only():
+    def predicate(ctx):
+        return str(ctx.author.id) in getenv('DEVELOPER_IDS')
+    return commands.check(predicate)
 
 # Wraps around commands to split args into flags and params.
 #   - func MUST follow async (self, ctx, flags, params) -> Any
 #   - decorator should be placed below @bot.command() decorator
 
-def extract_flags(blacklist: list[str] | None = None, whitelist: list[str] | None = None, **thesaurus: dict[str, list[str]]):
+def extract_flags(blacklist: list[str] | None = None, whitelist: list[str] | None = None, **thesaurus: dict[str, str]):
     def wrapper(func):
         async def wrapped(self, ctx, *args, **kwargs):
             flags  = []
@@ -26,11 +38,8 @@ def extract_flags(blacklist: list[str] | None = None, whitelist: list[str] | Non
                     flag = arg[1:]
 
                     # Translate synonyms into default
-                    if flag not in thesaurus.keys():
-                        for default, synonyms in thesaurus.items():
-                            if flag in synonyms:
-                                flag = default
-                                break
+                    if flag in thesaurus.keys():
+                        flag = thesaurus[flag]
                     
                     # Filter blacklisted flags
                     if blacklist != None and flag in blacklist:
@@ -51,27 +60,27 @@ def extract_flags(blacklist: list[str] | None = None, whitelist: list[str] | Non
     return wrapper
 
 # Yields all extension files in path.
-#   - path contains path to extensions                      default is 'extensions'
+#   - sys_path contains path to extensions                  default is 'extensions'
 #   - prefix_path toggles prefixing with extension path     default is False
 #   - recursive toggles recursive search                    default is True
 
-def yield_extensions(path: str = 'extensions', prefix_path: bool = False, recursive: bool = True) -> Generator[str, None, None]:
-    path = join(path, '**\\*.py' if recursive else '*.py')             # Build path dependent on requirements
-    for file in iglob(path, recursive=recursive):                      # Use iglob to match all python files
+def yield_extensions(sys_path: str = 'extensions', prefix_path: bool = False, recursive: bool = True) -> Generator[str, None, None]:
+    sys_path = join(sys_path, '**\\*.py' if recursive else '*.py')     # Build path dependent on requirements
+    for file in iglob(sys_path, recursive=recursive):                  # Use iglob to match all python files
         components = regex.findall(r'\w+', file)[:-1]                  # Split into components and trim extension
         yield '.'.join(components) if prefix_path else components[-1]  # Either return import path or extension name
 
-# Finds extension in path, returns full extension path if found
+# Finds extension in sys path, returns full extension path if found
 #   - extension contains extension to search for
-#   - path contains path to extensions                      default is 'extensions'
+#   - sys_path contains path to extensions                  default is 'extensions'
 #   - recursive toggles recursive search                    default is True
 
-def extension_path(extension: str, path: str = 'extensions', recursive: bool = True) -> str:
-    path = join(path, '**' if recursive else '', f'{extension_name(extension)}.py')  # Build path dependent on requirement
-    for file in iglob(path, recursive=recursive):                                    # Use iglob to match all python files
-        components = regex.findall(r'\w+', file)[:-1]                                # Split into components and trim extension
-        return '.'.join(components)                                                  # Return full extension path
-    return extension                                                                 # If not found return extension
+def extension_path(extension: str, sys_path: str = 'extensions', recursive: bool = True) -> str:
+    sys_path = join(sys_path, '**' if recursive else '', f'{extension_name(extension)}.py')  # Build path dependent on requirement
+    for file in iglob(sys_path, recursive=recursive):                                        # Use iglob to match all python files
+        components = regex.findall(r'\w+', file)[:-1]                                        # Split into components and trim extension
+        return '.'.join(components)                                                          # Return full extension path
+    return extension                                                                         # If not found return extension
 
 # Returns extension name from extension path
 #   - extension_path contains path to extension with `.` seperation
@@ -87,11 +96,11 @@ def extension_name(extension_path: str) -> str:
 
 def default_embed(bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> discord.Embed:
     palette = [
-        discord.Colour.from_rgb(255, 89,  94 ),
-        discord.Colour.from_rgb(255, 202, 58 ),
-        discord.Colour.from_rgb(138, 201, 38 ),
-        discord.Colour.from_rgb(25,  130, 196),
-        discord.Colour.from_rgb(106, 76,  147)
+        discord.Colour.from_rgb(255, 89,  94 ), # Red
+        discord.Colour.from_rgb(255, 202, 58 ), # Yellow
+        discord.Colour.from_rgb(138, 201, 38 ), # Green
+        discord.Colour.from_rgb(25,  130, 196), # Blue
+        discord.Colour.from_rgb(106, 76,  147)  # Purple
     ]
     
     embed = discord.Embed(
