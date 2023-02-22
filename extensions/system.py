@@ -34,9 +34,9 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 		# Finding summary to provide
 		reference = ctx.message.reference
 		if reference == None:
-			summary = util.history.first_summary()
+			summary = util.history.first()
 		else:
-			summary = util.history.search_summary(reference.message_id)
+			summary = util.history.search(reference.message_id)
 		
 		# Check if summary exists
 		if summary == None:

@@ -21,17 +21,17 @@ class Summary:
 class History:
     history = []
 
-    def add_summary(self, ctx, embed) -> None:
+    def add(self, ctx, embed) -> None:
         self.history.append(Summary(ctx, embed)) # Add to history
         self.history = self.history[:10]         # Trim history
     
-    def first_summary(self) -> Summary | None:
+    def first(self) -> Summary | None:
         if len(self.history) == 0:
             return None
 
         return self.history[-1]
 
-    def search_summary(self, id) -> Summary | None:
+    def search(self, id) -> Summary | None:
         for summary in self.history:
             if summary.ctx.message.id == id:
                 return summary
@@ -49,7 +49,7 @@ def dev_only():
         return str(ctx.author.id) in getenv('DEVELOPER_IDS')
     return commands.check(predicate)
 
-# Wraps around commands to split args into flags and params.
+# Wraps around commands to split args into flags and params, and keep track of history.
 #   - thesaurus contains flag synonyms
 #   - func MUST follow async (self, ctx, flags, params) -> discord.Embed
 #   - decorator should be placed below @bot.command() decorator
@@ -68,14 +68,14 @@ def default_command(thesaurus: dict[str, str] = {}):
 
             for arg in list(args):
 
-                # Parse flag
+                # Parse flags
                 if arg.startswith('-'):
                     flag = arg[1:]
                     if flag in thesaurus.keys():
                         flag = thesaurus[flag]
                     flags.append(flag)
                 
-                # Parse parameter
+                # Parse parameters
                 else:
                     params.append(arg)
 
@@ -85,7 +85,7 @@ def default_command(thesaurus: dict[str, str] = {}):
                 await ctx.reply(embed=embed, mention_author=False)
             
             # Update History
-            history.add_summary(ctx, embed)
+            history.add(ctx, embed)
 
         return wrapped
     return wrapper
