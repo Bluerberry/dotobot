@@ -11,13 +11,33 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ---------------------> Summary container
+# ---------------------> History
 
 class Summary:
-    embed = None
-    ctx   = None
+    def __init__(self, ctx, embed):
+        self.embed = embed
+        self.ctx = ctx
 
-summary = Summary()
+class History:
+    history = []
+
+    def add_summary(self, ctx, embed) -> None:
+        self.history.append(Summary(ctx, embed)) # Add to history
+        self.history = self.history[:10]         # Trim history
+    
+    def first_summary(self) -> Summary | None:
+        if len(self.history) == 0:
+            return None
+
+        return self.history[-1]
+
+    def search_summary(self, id) -> Summary | None:
+        for summary in self.history:
+            if summary.ctx.message.id == id:
+                return summary
+        return None
+
+history = History()
 
 # ---------------------> Utility functions
 
@@ -60,11 +80,12 @@ def default_command(thesaurus: dict[str, str] = {}):
                     params.append(arg)
 
             # Feedback
-            summary.embed = await func(self, ctx, flags, params)
-            summary.ctx = ctx
-
+            embed = await func(self, ctx, flags, params)
             if 'summary' in flags and 'quiet' not in flags:
-                await ctx.reply(embed=summary.embed, mention_author=False)
+                await ctx.reply(embed=embed, mention_author=False)
+            
+            # Update History
+            history.add_summary(ctx, embed)
 
         return wrapped
     return wrapper

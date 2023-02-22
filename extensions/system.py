@@ -28,13 +28,24 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 	def __init__(self, bot: commands.Bot) -> None:
 		self.bot = bot
 
-	@commands.command(name='summary', description='Provides summary of previous command.')
+	@commands.command(name='summary', description='Provides summary of previous command, or reference command.')
 	async def summary(self, ctx: commands.Context) -> None:
-		if (embed := util.summary.embed) == None:
-			log.warn('Failed to provide summary')
-			await ctx.reply('There is no summary to provide...', mention_author=False)
+
+		# Finding summary to provide
+		reference = ctx.message.reference
+		if reference == None:
+			summary = util.history.first_summary()
 		else:
-			await util.summary.ctx.reply(embed=embed, mention_author=False)
+			summary = util.history.search_summary(reference.message_id)
+		
+		# Check if summary exists
+		if summary == None:
+			await ctx.reply('No summary found!', mention_author=False)
+			log.warn('Failed to provide summary')
+			return
+		
+		# Provide summary
+		await summary.ctx.reply(embed=summary.embed, mention_author=False)
 
 	@util.dev_only()
 	@commands.command(name='load', description='Loads extensions by name.')
