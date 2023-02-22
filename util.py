@@ -14,81 +14,82 @@ load_dotenv()
 # ---------------------> History
 
 class Summary:
-    def __init__(self, ctx, embed):
-        self.embed = embed
-        self.ctx = ctx
+	def __init__(self, ctx, embed):
+		self.embed = embed
+		self.ctx = ctx
 
 class History:
-    history = []
+	history = []
 
-    def add(self, ctx, embed) -> None:
-        self.history.append(Summary(ctx, embed)) # Add to history
-        self.history = self.history[:10]         # Trim history
-    
-    def first(self) -> Summary | None:
-        if len(self.history) == 0:
-            return None
+	def add(self, ctx, embed) -> None:
+		self.history.append(Summary(ctx, embed)) # Add to history
+		self.history = self.history[:10]         # Trim history
 
-        return self.history[-1]
+	def first(self) -> Summary | None:
+		if len(self.history) == 0:
+			return None
 
-    def search(self, id) -> Summary | None:
-        for summary in self.history:
-            if summary.ctx.message.id == id:
-                return summary
-        return None
+		return self.history[-1]
+
+	def search(self, id) -> Summary | None:
+		for summary in self.history:
+			if summary.ctx.message.id == id:
+				return summary
+		return None
 
 history = History()
 
-# ---------------------> Utility functions
+# ---------------------> Wrappers
 
 # Wraps around commands to make it dev only
-#   - decorator should be placed above @bot.command() decorator
 
 def dev_only():
-    def predicate(ctx):
-        return str(ctx.author.id) in getenv('DEVELOPER_IDS')
-    return commands.check(predicate)
+	def predicate(ctx):
+		return str(ctx.author.id) in getenv('DEVELOPER_IDS')
+	return commands.check(predicate)
 
-# Wraps around commands to split args into flags and params, and keep track of history.
+# Wraps around commands to parse args into flags and params.
 #   - thesaurus contains flag synonyms
-#   - func MUST follow async (self, ctx, flags, params) -> discord.Embed
+#   - func MUST follow async (self, ctx, flags, params) -> Any
 #   - decorator should be placed below @bot.command() decorator
 
 def default_command(thesaurus: dict[str, str] = {}):
+	def wrapper(func):
+		async def wrapped(self, ctx, *args, **_):
+			flags  = []
+			params = []
 
-    # Update default with thesaurus
-    temp = {'s': 'summary', 'q': 'quiet'}
-    temp.update(thesaurus)
-    thesaurus = temp
+			for arg in args:
 
-    def wrapper(func):
-        async def wrapped(self, ctx, *args, **_):
-            flags  = []
-            params = []
+				# Parse flags
+				if arg.startswith('-'):
+					flag = arg[1:]
+					if flag in thesaurus.keys():
+						flag = thesaurus[flag]
+					flags.append(flag)
 
-            for arg in list(args):
+				# Parse params
+				else:
+					params.append(arg)
 
-                # Parse flags
-                if arg.startswith('-'):
-                    flag = arg[1:]
-                    if flag in thesaurus.keys():
-                        flag = thesaurus[flag]
-                    flags.append(flag)
-                
-                # Parse parameters
-                else:
-                    params.append(arg)
+			return await func(self, ctx, flags, params)
+		return wrapped
+	return wrapper
 
-            # Feedback
-            embed = await func(self, ctx, flags, params)
-            if 'summary' in flags and 'quiet' not in flags:
-                await ctx.reply(embed=embed, mention_author=False)
-            
-            # Update History
-            history.add(ctx, embed)
+# Wraps around commands to add summary to history
+#   - func MUST follow async (self, ctx, *args, **kwargs) -> discord.Embed
+#   - decorator should be places below @bot.command() decorator
 
-        return wrapped
-    return wrapper
+def summarized():
+	def wrapper(func):
+		async def wrapped(self, ctx, *args, **kwargs):
+			output = await func(self, ctx, *args, **kwargs)
+			history.add(ctx, output)
+			return output
+		return wrapped
+	return wrapper
+
+# ---------------------> Functions
 
 # Returns default, empty embed.
 #   - title & description are header strings                default is empty
@@ -97,26 +98,26 @@ def default_command(thesaurus: dict[str, str] = {}):
 #   - color loops through rainbow color palette             default is red
 
 def default_embed(bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> discord.Embed:
-    palette = [
-        discord.Colour.from_rgb(255, 89,  94 ), # Red
-        discord.Colour.from_rgb(255, 202, 58 ), # Yellow
-        discord.Colour.from_rgb(138, 201, 38 ), # Green
-        discord.Colour.from_rgb(25,  130, 196), # Blue
-        discord.Colour.from_rgb(106, 76,  147)  # Purple
-    ]
-    
-    embed = discord.Embed(
-        title=title,
-        description=description,
-        color=palette[color % 5]
-    )
+	palette = [
+		discord.Colour.from_rgb(255, 89,  94 ), # Red
+		discord.Colour.from_rgb(255, 202, 58 ), # Yellow
+		discord.Colour.from_rgb(138, 201, 38 ), # Green
+		discord.Colour.from_rgb(25,  130, 196), # Blue
+		discord.Colour.from_rgb(106, 76,  147)  # Purple
+	]
 
-    if author:
-        embed.set_author(name=bot.user.name) # TODO maybe add an icon?
-    if footer:
-        embed.set_footer(text=f'Powered by {bot.user.name}')
+	embed = discord.Embed(
+		title=title,
+		description=description,
+		color=palette[color % 5]
+	)
 
-    return embed
+	if author:
+		embed.set_author(name=bot.user.name) # TODO maybe add an icon?
+	if footer:
+		embed.set_footer(text=f'Powered by {bot.user.name}')
+
+	return embed
 
 # Yields all extension files in path.
 #   - sys_path contains path to extensions                  default is 'extensions'
@@ -124,10 +125,10 @@ def default_embed(bot: commands.Bot, title: str = '', description: str = '', aut
 #   - recursive toggles recursive search                    default is True
 
 def yield_extensions(sys_path: str = 'extensions', prefix_path: bool = False, recursive: bool = True) -> Generator[str, None, None]:
-    sys_path = join(sys_path, '**\\*.py' if recursive else '*.py')     # Build path dependent on requirements
-    for file in iglob(sys_path, recursive=recursive):                  # Use iglob to match all python files
-        components = regex.findall(r'\w+', file)[:-1]                  # Split into components and trim extension
-        yield '.'.join(components) if prefix_path else components[-1]  # Either return import path or extension name
+	sys_path = join(sys_path, '**\\*.py' if recursive else '*.py')     # Build path dependent on requirements
+	for file in iglob(sys_path, recursive=recursive):                  # Use iglob to match all python files
+		components = regex.findall(r'\w+', file)[:-1]                  # Split into components and trim extension
+		yield '.'.join(components) if prefix_path else components[-1]  # Either return import path or extension name
 
 # Finds extension in sys path, returns full extension path if found
 #   - extension contains extension to search for
@@ -135,34 +136,34 @@ def yield_extensions(sys_path: str = 'extensions', prefix_path: bool = False, re
 #   - recursive toggles recursive search                    default is True
 
 def extension_path(extension: str, sys_path: str = 'extensions', recursive: bool = True) -> str:
-    sys_path = join(sys_path, '**' if recursive else '', f'{extension_name(extension)}.py')  # Build path dependent on requirement
-    for file in iglob(sys_path, recursive=recursive):                                        # Use iglob to match all python files
-        components = regex.findall(r'\w+', file)[:-1]                                        # Split into components and trim extension
-        return '.'.join(components)                                                          # Return full extension path
-    return extension                                                                         # If not found return extension
+	sys_path = join(sys_path, '**' if recursive else '', f'{extension_name(extension)}.py')  # Build path dependent on requirement
+	for file in iglob(sys_path, recursive=recursive):                                        # Use iglob to match all python files
+		components = regex.findall(r'\w+', file)[:-1]                                        # Split into components and trim extension
+		return '.'.join(components)                                                          # Return full extension path
+	return extension                                                                         # If not found return extension
 
 # Returns extension name from extension path
 #   - extension_path contains path to extension with `.` seperation
 
 def extension_name(extension_path: str) -> str:
-    return extension_path.split('.')[-1]
-    palette = [
-        discord.Colour.from_rgb(255, 89,  94 ), # Red
-        discord.Colour.from_rgb(255, 202, 58 ), # Yellow
-        discord.Colour.from_rgb(138, 201, 38 ), # Green
-        discord.Colour.from_rgb(25,  130, 196), # Blue
-        discord.Colour.from_rgb(106, 76,  147)  # Purple
-    ]
-    
-    embed = discord.Embed(
-        title=title,
-        description=description,
-        color=palette[color % 5]
-    )
+	return extension_path.split('.')[-1]
+	palette = [
+		discord.Colour.from_rgb(255, 89,  94 ), # Red
+		discord.Colour.from_rgb(255, 202, 58 ), # Yellow
+		discord.Colour.from_rgb(138, 201, 38 ), # Green
+		discord.Colour.from_rgb(25,  130, 196), # Blue
+		discord.Colour.from_rgb(106, 76,  147)  # Purple
+	]
 
-    if author:
-        embed.set_author(name=bot.user.name) # TODO maybe add an icon?
-    if footer:
-        embed.set_footer(text=f'Powered by {bot.user.name}')
+	embed = discord.Embed(
+		title=title,
+		description=description,
+		color=palette[color % 5]
+	)
 
-    return embed
+	if author:
+		embed.set_author(name=bot.user.name) # TODO maybe add an icon?
+	if footer:
+		embed.set_footer(text=f'Powered by {bot.user.name}')
+
+	return embed

@@ -29,6 +29,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 		self.bot = bot
 
 	@commands.command(name='summary', description='Provides summary of previous command, or reference command.')
+	@util.default_command()
 	async def summary(self, ctx: commands.Context) -> None:
 
 		# Finding summary to provide
@@ -47,9 +48,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 		# Provide summary
 		await summary.ctx.reply(embed=summary.embed, mention_author=False)
 
-	@util.dev_only()
 	@commands.command(name='load', description='Loads extensions by name.')
-	@util.default_command(thesaurus={'a': 'all'})
+	@util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+	@util.summarized()
+	@util.dev_only()
 	async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
 		# Prepare extension paths
@@ -99,9 +101,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 		return embed
 
 
-	@util.dev_only()
 	@commands.command(name='unload', description='Unloads extensions by name.')
-	@util.default_command(thesaurus={'a': 'all'})
+	@util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+	@util.summarized()
+	@util.dev_only()
 	async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
 		# Prepare extension paths
@@ -155,9 +158,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 		return embed
 
 
-	@util.dev_only()
 	@commands.command(name='reload', description='Reloads extensions by name.')
-	@util.default_command(thesaurus={'a': 'all'})
+	@util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+	@util.summarized()
+	@util.dev_only()
 	async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
 		# Prepare extension paths
