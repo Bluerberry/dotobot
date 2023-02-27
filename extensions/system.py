@@ -185,3 +185,43 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 await ctx.reply(embed=embed, mention_author=False)
             else:
                 await ctx.reply(status, mention_author=False)
+
+
+    @util.dev_only()
+    @commands.command(name='status', description='Displays extension status')
+    @util.extract_flags(thesaurus={'a': 'all'})
+    async def status(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
+
+        known  = util.yield_extensions(prefix_path=True)
+        loaded = self.bot.extensions.keys()
+
+        # Prepare extension paths
+        if not params or 'all' in flags:
+            params = known
+        else:
+            params = map(util.extension_path, params)
+
+        # Create summary
+        active = 0
+        summary = ''
+        for ext in params:
+            if ext not in known:
+                summary += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
+            elif ext in loaded:
+                summary += f'🟢 {util.extension_name(ext).capitalize()} is activated\n'
+                active += 1
+            else:
+                summary += f'🔴 {util.extension_name(ext).capitalize()} is deactivated\n'
+
+        # Feedback
+        if 'silent' not in flags:
+            if total := len(params) == 0:
+                status = 'No extensions are active'
+            elif total == active:
+                status = 'All extensions are active'
+            else:
+                status = f'{active} out of {total} extensions are active'
+
+            embed = util.default_embed(self.bot, 'Status', status)
+            embed.add_field(name='Extensions', value=f'```{summary}```')
+            await ctx.reply(embed=embed, mention_author=False)
