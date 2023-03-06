@@ -2,6 +2,7 @@
 import logging
 from os.path import basename
 
+import discord
 from discord import ExtensionAlreadyLoaded, ExtensionNotFound, ExtensionNotLoaded
 from discord.ext import commands
 
@@ -26,26 +27,48 @@ def teardown(bot: commands.Bot) -> None:
 class System(commands.Cog, name=name, description='Controls internal functionality'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-    
-    @util.dev_only()
+
+    @commands.command(name='summary', description='Provides summary of previous command, or reference command.')
+    @util.default_command()
+    async def summary(self, ctx: commands.Context) -> None:
+
+        # Finding summary to provide
+        reference = ctx.message.reference
+        if reference == None:
+            summary = util.history.last()
+        else:
+            summary = util.history.search(reference.message_id)
+
+        # Check if summary exists
+        if summary == None:
+            await ctx.reply('No summary found!', mention_author=False)
+            log.warn('Failed to provide summary')
+            return
+
+        # Provide summary
+        await summary.ctx.reply(embed=summary.embed, mention_author=False)
+
     @commands.command(name='load', description='Loads extensions by name.')
-    @util.extract_flags(thesaurus={'v': 'verbose', 's': 'silent'})
-    async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
+    @util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
+    @util.dev_only()
+    async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
         # Prepare extension paths
         if not params or 'all' in flags:
-            params = util.yield_extensions(prefix_path=True)
+            params = list(util.yield_extensions(prefix_path=True))
         else:
-            params = map(util.extension_path, params)
+            params = [util.extension_path(param) for param in params]
 
         # Load extensions
         success = 0
         summary = ''
-        for ext in params: 
+        for ext in params:
 
             try:
                 self.bot.load_extension(ext)
                 summary += f'🟢 {util.extension_name(ext).capitalize()} sucessfully loaded\n'
+                success += 1
 
             except ExtensionAlreadyLoaded as err:
                 log.warning(err)
@@ -59,42 +82,45 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 log.error(err)
                 summary += f'🔴 {util.extension_name(ext).capitalize()} failed to load\n'
 
-            else:
-                success += 1
+        # Find status
+        if (total := len(params)) == 0:
+            status = 'No extensions have loaded'
+        elif total == success:
+            status = 'All extensions have loaded'
+        else:
+            status = f'{success} out of {total} extensions have loaded'
+
+        # Build embed
+        embed = util.default_embed(self.bot, 'Summary', status)
+        embed.add_field(name='Extensions', value=f'```{summary}```')
 
         # Feedback
-        if 'silent' not in flags:
-            if total := len(params) == 0:
-                status = 'No extensions have loaded'
-            elif total == success:
-                status = 'All extensions have loaded'
-            else:
-                status = f'{success} out of {total} extensions have loaded'
-
+        if 'quiet' not in flags:
             if 'verbose' in flags:
-                embed = util.default_embed(self.bot, 'Summary', status)
-                embed.add_field(name='Extensions', value=f'```{summary}```')
                 await ctx.reply(embed=embed, mention_author=False)
             else:
                 await ctx.reply(status, mention_author=False)
 
+        return embed
 
+
+    @commands.command(name='unload', description='Unloads extensions by name.')
+    @util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
     @util.dev_only()
-    @commands.command(name='unload', description='Unloads extensions by name')
-    @util.extract_flags(thesaurus={'v': 'verbose', 's': 'silent'})
-    async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
+    async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
         # Prepare extension paths
         if not params or 'all' in flags:
             params = list(self.bot.extensions.keys())
         else:
-            params = map(util.extension_path, params)
+            params = [util.extension_path(param) for param in params]
 
         # Unload extensions
         success = 0
         summary = ''
         for ext in params:
-            
+
             if util.extension_name(ext) == 'system':
                 summary += f'🔴 {util.extension_name(ext).capitalize()} should\'nt unload\n'
                 continue
@@ -102,6 +128,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             try:
                 self.bot.unload_extension(ext)
                 summary += f'🟢 {util.extension_name(ext).capitalize()} sucessfully unloaded\n'
+                success += 1
 
             except ExtensionNotLoaded as err:
                 log.warning(err)
@@ -115,36 +142,39 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 log.error(err)
                 summary += f'🔴 {util.extension_name(ext).capitalize()} failed to unload\n'
 
-            else:
-                success += 1
+        # Find status
+        if (total := len(params)) == 0:
+            status = 'No extensions have unloaded'
+        elif total == success:
+            status = 'All extensions have unloaded'
+        else:
+            status = f'{success} out of {total} extensions have unloaded'
+
+        # Build embed
+        embed = util.default_embed(self.bot, 'Summary', status)
+        embed.add_field(name='Extensions', value=f'```{summary}```')
 
         # Feedback
-        if 'silent' not in flags:
-            if total := len(params) == 0:
-                status = 'No extensions have unloaded'
-            elif total == success:
-                status = 'All extensions have unloaded'
-            else:
-                status = f'{success} out of {total} extensions have unloaded'
-
+        if 'quiet' not in flags:
             if 'verbose' in flags:
-                embed = util.default_embed(self.bot, 'Summary', status)
-                embed.add_field(name='Extensions', value=f'```{summary}```')
                 await ctx.reply(embed=embed, mention_author=False)
             else:
                 await ctx.reply(status, mention_author=False)
 
+        return embed
 
+
+    @commands.command(name='reload', description='Reloads extensions by name.')
+    @util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
     @util.dev_only()
-    @commands.command(name='reload', description='Reloads extensions by name')
-    @util.extract_flags(thesaurus={'v': 'verbose', 's': 'silent'})
-    async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
+    async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
 
         # Prepare extension paths
         if not params or 'all' in flags:
             params = list(self.bot.extensions.keys())
         else:
-            params = map(util.extension_path, params)
+            params = [util.extension_path(param) for param in params]
 
         # Reload extensions
         success = 0
@@ -154,6 +184,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             try:
                 self.bot.reload_extension(ext)
                 summary += f'🟢 {util.extension_name(ext).capitalize()} sucessfully reloaded\n'
+                success += 1
 
             except ExtensionNotLoaded as err:
                 log.warning(err)
@@ -167,29 +198,31 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 log.error(err)
                 summary += f'🔴 {util.extension_name(ext).capitalize()} failed to reload\n'
 
-            else:
-                success += 1
-
         # Feedback
         if 'silent' not in flags:
-            if total := len(params) == 0:
+            if (total := len(params)) == 0:
                 status = 'No extensions have reloaded'
             elif total == success:
                 status = 'All extensions have reloaded'
             else:
                 status = f'{success} out of {total} extensions have reloaded'
 
+        # Build embed
+        embed = util.default_embed(self.bot, 'Summary', status)
+        embed.add_field(name='Extensions', value=f'```{summary}```')
+
+        # Feedback
+        if 'quiet' not in flags:
             if 'verbose' in flags:
-                embed = util.default_embed(self.bot, 'Summary', status)
-                embed.add_field(name='Extensions', value=f'```{summary}```')
                 await ctx.reply(embed=embed, mention_author=False)
             else:
                 await ctx.reply(status, mention_author=False)
 
+        return embed
 
-    @util.dev_only()
+
     @commands.command(name='status', description='Displays extension status')
-    @util.extract_flags(thesaurus={'a': 'all'})
+    @util.default_command(thesaurus={'a': 'all'})
     async def status(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
         known  = util.yield_extensions(prefix_path=True)
@@ -214,14 +247,13 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 summary += f'🔴 {util.extension_name(ext).capitalize()} is deactivated\n'
 
         # Feedback
-        if 'silent' not in flags:
-            if total := len(params) == 0:
-                status = 'No extensions are active'
-            elif total == active:
-                status = 'All extensions are active'
-            else:
-                status = f'{active} out of {total} extensions are active'
+        if (total := len(params)) == 0:
+            status = 'No extensions are active'
+        elif total == active:
+            status = 'All extensions are active'
+        else:
+            status = f'{active} out of {total} extensions are active'
 
-            embed = util.default_embed(self.bot, 'Status', status)
-            embed.add_field(name='Extensions', value=f'```{summary}```')
-            await ctx.reply(embed=embed, mention_author=False)
+        embed = util.default_embed(self.bot, 'Status', status)
+        embed.add_field(name='Extensions', value=f'```{summary}```')
+        await ctx.reply(embed=embed, mention_author=False)
