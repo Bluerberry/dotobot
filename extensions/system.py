@@ -30,7 +30,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
     @commands.command(name='summary', description='Provides summary of previous command, or reference command.')
     @util.default_command()
-    async def summary(self, ctx: commands.Context) -> None:
+    async def summary(self, ctx: commands.Context, *_) -> None:
 
         # Finding summary to provide
         reference = ctx.message.reference
@@ -225,14 +225,14 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     @util.default_command(thesaurus={'a': 'all'})
     async def status(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
 
-        known  = util.yield_extensions(prefix_path=True)
-        loaded = self.bot.extensions.keys()
+        known  = list(util.yield_extensions(prefix_path=True))
+        loaded = list(self.bot.extensions.keys())
 
         # Prepare extension paths
         if not params or 'all' in flags:
             params = known
         else:
-            params = map(util.extension_path, params)
+            params = [util.extension_path(param) for param in params]
 
         # Create summary
         active = 0
