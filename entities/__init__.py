@@ -1,2 +1,4 @@
 from .base import db
-from . import quote, cog, user
+from .quote import Quote
+from .cog import Cog
+from .user import User, BannedUser
