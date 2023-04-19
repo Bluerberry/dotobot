@@ -11,44 +11,115 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ---------------------> Utility functions
+# ---------------------> History
+
+class Summary:
+    def __init__(self, ctx, embed):
+        self.embed = embed
+        self.ctx = ctx
+
+class History:
+    history = []
+
+    def add(self, ctx, embed) -> None:
+        self.history.append(Summary(ctx, embed)) # Add to history
+        self.history = self.history[:10]         # Trim history
+
+    def last(self) -> Summary | None:
+        if len(self.history) == 0:
+            return None
+
+        return self.history[-1]
+
+    def search(self, id) -> Summary | None:
+        for summary in self.history:
+            if summary.ctx.message.id == id:
+                return summary
+        return None
+
+history = History()
+
+# ---------------------> Wrappers
 
 # Wraps around commands to make it dev only
-#   - decorator should be placed above @bot.command() decorator
+#   - outgoing func signature does not change
+#   - decorator should be placed below @bot.command() decorator
 
 def dev_only():
     def predicate(ctx):
         return str(ctx.author.id) in getenv('DEVELOPER_IDS')
     return commands.check(predicate)
 
-# Wraps around commands to split args into flags and params.
-#   - func MUST follow async (self, ctx, flags, params) -> Any
+# Wraps around commands to add summary to history
+#   - incoming func MUST return discord.Embed
+#   - outgoing func signature does not change
 #   - decorator should be placed below @bot.command() decorator
 
-def extract_flags(thesaurus: dict[str, str] = None):
+def summarized():
     def wrapper(func):
         async def wrapped(self, ctx, *args, **kwargs):
+            summary = await func(self, ctx, *args, **kwargs)
+            history.add(ctx, summary)
+            return summary
+        return wrapped
+    return wrapper
+
+
+# Wraps around commands to split args into flags and params.
+#   - incoming func MUST follow async (self, ctx, flags, params) -> Any
+#   - outgoing func follows async (self, ctx, *args, **kwargs) -> Any
+#   - decorator should be placed below @bot.command() decorator
+
+def default_command(thesaurus: dict[str, str] = {}):
+    def wrapper(func):
+        async def wrapped(self, ctx, *args, **_):
             flags  = []
             params = []
 
-            for arg in list(args):
+            for arg in args:
 
-                # Parse flag
+                # Parse flags
                 if arg.startswith('-'):
                     flag = arg[1:]
-
-                    # Translate synonyms into default
-                    if thesaurus != None and flag in thesaurus.keys():
+                    if flag in thesaurus.keys():
                         flag = thesaurus[flag]
                     flags.append(flag)
-                
-                # Parse parameter
+
+                # Parse params
                 else:
                     params.append(arg)
 
             return await func(self, ctx, flags, params)
         return wrapped
     return wrapper
+
+# Returns default, empty embed.
+#   - title & description are header strings                default is empty
+#   - author toggles author                                 default is False
+#   - footer toggles footer                                 default is True
+#   - color loops through rainbow color palette             default is red
+
+def default_embed(bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> discord.Embed:
+    palette = [
+        discord.Colour.from_rgb(255, 89,  94 ), # Red
+        discord.Colour.from_rgb(255, 202, 58 ), # Yellow
+        discord.Colour.from_rgb(138, 201, 38 ), # Green
+        discord.Colour.from_rgb(25,  130, 196), # Blue
+        discord.Colour.from_rgb(106, 76,  147)  # Purple
+    ]
+
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=palette[color % 5]
+    )
+
+    if author:
+        embed.set_author(name=bot.user.name) # TODO maybe add an icon?
+    if footer:
+        embed.set_footer(text=f'Powered by {bot.user.name}')
+
+    return embed
 
 # Yields all extension files in path.
 #   - sys_path contains path to extensions                  default is 'extensions'
@@ -78,31 +149,3 @@ def extension_path(extension: str, sys_path: str = 'extensions', recursive: bool
 
 def extension_name(extension_path: str) -> str:
     return extension_path.split('.')[-1]
-
-# Returns default, empty embed.
-#   - title & description are header strings                default is empty
-#   - author toggles author                                 default is False
-#   - footer toggles footer                                 default is True
-#   - color loops through rainbow color palette             default is red
-
-def default_embed(bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> discord.Embed:
-    palette = [
-        discord.Colour.from_rgb(255, 89,  94 ), # Red
-        discord.Colour.from_rgb(255, 202, 58 ), # Yellow
-        discord.Colour.from_rgb(138, 201, 38 ), # Green
-        discord.Colour.from_rgb(25,  130, 196), # Blue
-        discord.Colour.from_rgb(106, 76,  147)  # Purple
-    ]
-    
-    embed = discord.Embed(
-        title=title,
-        description=description,
-        color=palette[color % 5]
-    )
-
-    if author:
-        embed.set_author(name=bot.user.name) # TODO maybe add an icon?
-    if footer:
-        embed.set_footer(text=f'Powered by {bot.user.name}')
-
-    return embed
