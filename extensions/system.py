@@ -1,17 +1,13 @@
 
 import logging
-from os import getenv
 from os.path import basename
 
-from discor.ui import View, button
-from discord import (ButtonStyle, ExtensinNotFound, ExtensionAlreadyLoaded,
-                     ExtensionNotLoaded)
+import discord
+from discord import ExtensionAlreadyLoaded, ExtensionNotFound, ExtensionNotLoaded
 from discord.ext import commands
 from dotenv import load_dotenv
-from pony.orm import db_session
 
 import util
-from entities import User
 
 # ---------------------> Logging setup
 
@@ -35,32 +31,8 @@ def teardown(bot: commands.Bot) -> None:
 
 class System(commands.Cog, name=name, description='Controls internal functionality'):
     def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
+        self.bot = bot        
 
-    @commands.event
-    async def on_member_join(self, member):
-        class Setup(View):
-            @button(label='Setup', style=ButtonStyle.blurple, emoji='🎮')
-            async def steam_setup(self, button, interaction):
-                return
-
-            @button(label='Skip', style=ButtonStyle.gray, emoji='👉')
-            async def skip_setup(Self, button, interaction):
-                return
-
-        with db_session:
-            if User.exists(user_id=member.id):
-                log.info("New user already known")
-                return
-            User(user_id=member.id)
-
-        channel = self.bot.get_channel(int(getenv('GREET_CHANNEL_ID')))
-        if channel == None:
-                log.error('Failed to load greet channel')
-                return
-
-        await channel.send(f'Welcome {member.mention}, to {channel.guild.name}! Do you want to link your Steam account?', view=Setup())
-    
     @util.dev_only()
     @commands.command(name='load', description='Loads extensions by name.')
     @util.extract_flags(thesaurus={'v': 'verbose', 's': 'silent'})
