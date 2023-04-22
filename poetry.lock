@@ -555,6 +555,21 @@ vdf = ">=3.3"
 client = ["gevent (>=1.3.0)", "gevent-eventemitter (>=2.1,<3.0)", "protobuf (<3.18.0)", "protobuf (>=3.0,<4.0)"]
 
 [[package]]
+name = "steamfront"
+version = "0.1.0"
+description = "A simple plugin to allow you to nicely access things on the Steam API and web server."
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "steamfront-0.1.00-py2.py3-none-any.whl", hash = "sha256:5d003dbc3d299c39c5066009d91631c2a3486a2d4b1097ecc8011ab84c75df52"},
+    {file = "steamfront-0.1.00.tar.gz", hash = "sha256:58323d63a49033f7fc6877b6d7d89e2208c0c305083b218cf54283051ccc4725"},
+]
+
+[package.dependencies]
+requests = "*"
+
+[[package]]
 name = "urllib3"
 version = "1.26.15"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -674,4 +689,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "2673096c194ef6cd55cde00e342188a7983cf577b5daa672ffc226098d17ead9"
+content-hash = "4dd65948b6bc94020bef5bd3883dd2ac19b79b9c6ea55b47c1133e060a3428d8"

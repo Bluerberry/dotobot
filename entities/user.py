@@ -1,13 +1,13 @@
-from pony.orm.core import Required, PrimaryKey, Optional, Set, StrArray, IntArray
+from pony.orm.core import Required, PrimaryKey, Optional, IntArray
 from .base import db
 
 
 class User(db.Entity):
-    user_id = Required(int, unique=True, size=64)
+    discord_id = Required(int, unique=True, size=64)
     steam_id = Optional(int)
 
-    blacklisted_games = Optional(StrArray)
-    whitelisted_games = Optional(StrArray)
+    blacklisted_pings = Optional(IntArray)
+    whitelisted_pings = Optional(IntArray)
 
 
 class BannedUser(db.Entity):

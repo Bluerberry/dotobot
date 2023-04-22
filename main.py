@@ -1,5 +1,6 @@
 
 import logging
+from logging import config
 from os import getenv
 
 import discord
@@ -9,11 +10,11 @@ from pony.orm import db_session
 
 import util
 from entities import User, db
-from extensions.ping import SteamSetup
+from extensions.ping import PingSetup
 
 # ---------------------> Logging setup
 
-logging.config.fileConfig('log.conf')
+config.fileConfig('log.conf')
 log = logging.getLogger('root')
 
 # ---------------------> Environment setup
@@ -38,8 +39,9 @@ async def on_ready() -> None:
 @bot.event
 async def on_member_join(member: discord.User) -> None:
     class View(discord.ui.View):
-        @discord.ui.button(label='Setup', style=discord.ButtonStyle.blurple, emoji='🎮')
-        async def steam_setup(self, button, interaction) -> None:
+        @discord.ui.button(label='Setup', style=discord.ButtonStyle.blurple, emoji='📬')
+        async def ping_setup(self, button, interaction) -> None:
+            await ctx.send(view=PingSetup(ctx.author)) # TODO add message and send to dms
             for child in self.children:
                 child.disabled = True
             await interaction.response.send_modal(SteamSetup(member))
@@ -64,7 +66,7 @@ async def on_member_join(member: discord.User) -> None:
         User(user_id=member.id)
     
     # Send greetings
-    await channel.send(f'Welcome {member.mention}, to {channel.guild.name}! Do you want to link your Steam account?', view=View())
+    await channel.send(f'Welcome {member.mention}, to {channel.guild.name}! Do you want to set up pings?', view=View())
     log.info(f'New user `{member.name}` ({member.id}) added to the database')
 
 # ---------------------> Main

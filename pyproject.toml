@@ -14,6 +14,7 @@ python-dotenv = "^0.21.1"
 discord-pretty-help = "^2.0.0"
 psycopg2 = "^2.9.5"
 steam = "^1.4.4"
+steamfront = "^0.1.0"
 
 
 [build-system]
