@@ -10,7 +10,6 @@ from pony.orm import db_session
 
 import util
 from entities import User, db
-from extensions.ping import PingSetup
 
 # ---------------------> Logging setup
 
@@ -34,50 +33,53 @@ bot = commands.Bot(command_prefix='$', intents=intents)
 
 @bot.event
 async def on_ready() -> None:
+    
+    # Add all members from all guilds to database
+    with db_session:
+        for guild in bot.guilds:
+            for member in guild.members:
+                if bot.application_id == member.id:
+                    continue
+
+                if User.exists(discord_id=member.id):
+                    log.debug(f"New user `{member.name}` ({member.id}) already known")
+                    continue
+
+                User(discord_id=member.id)
+                log.info(f'New user `{member.name}` ({member.id}) added to the database')
+    
     log.info(f'Succesful login as {bot.user}')
 
 @bot.event
 async def on_member_join(member: discord.User) -> None:
-    class View(discord.ui.View):
-        @discord.ui.button(label='Setup', style=discord.ButtonStyle.blurple, emoji='📬')
-        async def ping_setup(self, button, interaction) -> None:
-            await ctx.send(view=PingSetup(ctx.author)) # TODO add message and send to dms
-            for child in self.children:
-                child.disabled = True
-            await interaction.response.send_modal(SteamSetup(member))
-
-        @discord.ui.button(label='Skip', style=discord.ButtonStyle.gray, emoji='👉')
-        async def skip_setup(self, button, interaction) -> None:
-            for child in self.children:
-                child.disabled = True
-            await interaction.response.edit_message(view=self)
 
     # Find greet chanel
     channel = bot.get_channel(int(getenv('GREET_CHANNEL_ID')))
     if channel == None:
-        log.error(f'Failed to load greet channel ({getenv("GREET_CHANNEL_ID")}). Aborting...')
+        log.error(f'Failed to load greet channel ({getenv("GREET_CHANNEL_ID")})')
         return
 
     # Check if new user is already known
     with db_session:
-        if User.exists(user_id=member.id):
-            log.info(f"New user `{member.name}` ({member.id}) already known")
+        if User.exists(discord_id=member.id):
+            log.debug(f"New user `{member.name}` ({member.id}) already known")
             return
-        User(user_id=member.id)
+        
+        User(discord_id=member.id)
+        log.info(f'New user `{member.name}` ({member.id}) added to the database')
     
     # Send greetings
-    await channel.send(f'Welcome {member.mention}, to {channel.guild.name}! Do you want to set up pings?', view=View())
-    log.info(f'New user `{member.name}` ({member.id}) added to the database')
+    await channel.send(f'Welcome {member.mention}, to {channel.guild.name}!')
 
 # ---------------------> Main
 
 if __name__ == '__main__':
+
+    # Load all extensions
     for ext in util.yield_extensions(prefix_path=True):
         try:
             bot.load_extension(ext)
         except Exception as err:
             log.error(err)
-        
-    # TODO also add all users to database
-
+    
     bot.run(getenv('DISCORD_TOKEN'))

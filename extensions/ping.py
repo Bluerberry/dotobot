@@ -6,10 +6,10 @@ import discord
 from discord.ext import commands
 from pony.orm import db_session
 from steam.steamid import SteamID
-from steamfront import client
+import steamfront
 
-from entities import User, Ping
 import util
+from entities import User, Ping
 
 # ---------------------> Logging setup
 
@@ -18,9 +18,9 @@ log = logging.getLogger(name)
 
 # ---------------------> Steam setup
 
-steam_client = client.Client()
+steam = steamfront.Client()
 
-# ---------------------> Example cog
+# ---------------------> Ping cog
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(Ping(bot))
@@ -29,136 +29,6 @@ def setup(bot: commands.Bot) -> None:
 def teardown(bot: commands.Bot) -> None:
     log.info(f'Extension has been destroyed: {name}')
 
-class PingSetup(discord.ui.View):
-    def __init__(self, user: discord.User, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.user = user
-
-    @discord.ui.button(label='Link Steam', style=discord.ButtonStyle.blurple, emoji='🎮')
-    async def link(self, button, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(LinkSteam(self.user))
-
-    @discord.ui.button(label='Subscribe', style=discord.ButtonStyle.grey, emoji='📬')
-    async def subscribe(self, button, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(Subscribe(self.user))
-
-    @discord.ui.button(label='Unsubscribe', style=discord.ButtonStyle.grey, emoji='📭')
-    async def unsubscribe(self, button, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(Unsubscribe(self.user))
-
-class LinkSteam(discord.ui.Modal):
-    def __init__(self, user: discord.User, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.add_item(discord.ui.InputText(label='SteamID'))
-        self.user = user
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-    
-        # Validate Steam ID
-        steam = SteamID(self.children[0].value)
-        if not steam.is_valid():
-            log.warn(f"Failed to validate Steam ID `{steam.id}` for user `{self.user.name}` ({self.user.id}). Aborting...")
-            await interaction.response.send_message("Failed to validate Steam ID")
-            return
-
-        # Find user entity
-        with db_session:
-            entity = User.get(discord_id=self.user.id)
-            if not entity:
-                log.warn(f'User `{self.user.name}` ({self.user.id}) not in database. Aborting...')
-                await interaction.response.send_message('You are not in the database! Please contact an admin.')
-                return
-
-            # Update user entity
-            entity.steam_id = steam.as_64
-            log.info(f"Succesfully linked Steam account `{steam.as_64}` to user `{self.user.name}` ({self.user.id})")
-            await interaction.response.send_message("Succesfully linked Steam account!")
-
-class Subscribe(discord.ui.Modal):
-    def __init__(self, discord_user: discord.User, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.add_item(discord.ui.InputText(label='Search pings'))
-        self.discord_user = discord_user
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        query = self.children[0].value
-        # result = search_pings(query) # TODO implement this
-        result = [Ping.get(name=query)]
-
-        # No results found
-        if len(result) == 0:
-            await interaction.delete_original_response()
-            interaction.edit_original_message("I could not find any ping with that name... You could create a new one with this name, or try to search again.", view=PingNotFound(self.discord_user, query))
-            log.debug('No ping search results')
-            return
-
-        # Conclusive result found
-        if len(result) == 1:
-            ping = result[0]
-            
-            with db_session:
-
-                # Fetch database user
-                db_user = User.get(discord_id=self.discord_user.id)
-                if not db_user:
-                    await interaction.delete_original_response()
-                    interaction.edit_original_message('You are not in the database! Please contact an admin.')
-                    log.error(f'User `{self.discord_user.name}` ({self.discord_user.id}) not in database')
-                    return
-
-                # Remove ping from blacklisted pings
-                if ping.id in db_user.blacklisted_pings:
-                    db_user.blacklisted_pings.remove(ping.id)
-                    log.debug(f'Ping `{ping.name}` ({ping.id}) removed from user `{self.discord_user.name}` ({self.discord_user.id}) blacklist')
-
-                # If user has linked their Steam account, and the ping is from steam, fetch steam user
-                if db_user.steam_id and ping.steam_id:
-                    steam_user = steam_client.getUser(id64=db_user.steam_id)
-                    if not steam_user:
-                        await interaction.response.send_message(f'Failed to find Steam user `{db_user.steam_id}`. Try relinking your Steam account, or contact an admin.')
-                        interaction.edit_original_message(view=PingSetup(self.discord_user)) # TODO add message
-                        log.warn(f'Failed to find Steam user `{db_user.steam_id}`')
-                        return
-                    
-                    # If user has the game in their library, they're already subscribed
-                    if ping.steam_id in [app.appid for app in steam_user.apps]:
-                        await interaction.response.send_message(f'You were already subscribed to this ping, as this game is in your linked Steam library.')
-                        interaction.edit_original_message(view=PingSetup(self.discord_user)) # TODO add message
-                        log.info(f'User `{self.discord_user.name}` ({self.discord_user.id}) already subscribed to ping `{ping.name}` ({ping.id})')
-                        return
-                    
-                # Check if ping already in whitelist
-                if ping.id in db_user.whitelisted_pings:
-                    await interaction.response.send_message(f'You were already subscribed to this ping.')
-                    interaction.edit_original_message(view=PingSetup(self.discord_user)) # TODO add message
-                    log.info(f'User `{self.discord_user.name}` ({self.discord_user.id}) already subscribed to ping `{ping.name}` ({ping.id})')
-                    return
-
-                # Add ping to whitelist
-                db_user.whitelisted_pings.append(ping.id)
-                await interaction.response.send_message()
-                interaction.edit_original_message(view=PingSetup(self.discord_user)) # TODO add message
-                log.info(f'User `{self.discord_user.name}` ({self.discord_user.id}) subscribed to ping `{ping.name}` ({ping.id})')
-                return
-
-class PingNotFound(discord.ui.View):
-    def __init__(self, discord_user: discord.User, ping_name: str, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.discord_user = discord_user
-        self.ping_name = ping_name
-
-    @discord.ui.button(label='Try again', style=discord.ButtonStyle.blurple)
-    async def again(self, button, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(Subscribe(self.discord_user))
-
-    @discord.ui.button(label='Create New Ping', style=discord.ButtonStyle.green)
-    async def new(self, button, interaction: discord.Interaction) -> None:
-        pass # TODO implement this
-
-    @discord.ui.button(label='Nevermind', style=discord.ButtonStyle.grey)
-    async def cancel(self, button, interaction: discord.Interaction) -> None:
-        await interaction.edit_original_message(view=PingSetup(self.discord_user)) # TODO add message
-
 class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -166,9 +36,93 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     @commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
     @util.default_command()
     async def ping(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
-        await ctx.send('No subcommand invoked! Use `$help ping` for usage.') # TODO maybe not lie here
+        await ctx.send('No subcommand invoked! Use `$help ping` for usage.') # TODO implement $help ping
     
     @ping.command(name='setup', description='Ping setup')
     @util.default_command()
     async def setup(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
-        await ctx.send(view=PingSetup(ctx.author)) # TODO add message and send to dms
+        class PingSetup(discord.ui.View):
+            def __init__(self, *args, **kwargs) -> None:
+                super().__init__(timeout=10, disable_on_timeout=True, *args, **kwargs)
+
+            # Link Steam account
+            @discord.ui.button(label='Link Steam', style=discord.ButtonStyle.blurple, emoji='🎮')
+            async def link(self, _, interaction: discord.Interaction) -> None:
+                class LinkSteam(discord.ui.Modal):
+                    def __init__(self, *args, **kwargs) -> None:
+                        super().__init__(title='Link Steam', *args, **kwargs)
+                        self.add_item(discord.ui.InputText(label='Steam ID'))
+
+                    async def callback(self, interaction: discord.Interaction) -> None:
+
+                        # Validate Steam ID
+                        translator = SteamID(self.children[0].value)
+                        if not translator.is_valid():
+                            log.warn(f'Failed to validate Steam ID `{self.children[0].value}` for user `{ctx.author.name}` ({ctx.author.id})')
+                            await interaction.response.send_message('Failed to validate Steam ID...')
+                            return
+                        target_id = translator.as_64
+
+                        # Check if user already has a linked Steam account
+                        with db_session:
+                            db_user = User.get(discord_id=ctx.author.id)
+                            if db_user.steam_id:
+                                class VerifySteamOverride(discord.ui.View):
+                                    def __init__(self, *args, **kwargs) -> None:
+                                        super().__init__(timeout=60, disable_on_timeout=True, *args, **kwargs)
+
+                                    # Override Steam account
+                                    @discord.ui.button(label='Override', style=discord.ButtonStyle.green, emoji='📝')
+                                    async def override(self, _, interaction: discord.Interaction) -> None:
+                                        with db_session:
+                                            db_user = User.get(discord_id=ctx.author.id)
+                                            db_user.steam_id = target_id
+                                            log.info(f'Succesfully overrode Steam account to `{target_id}` for user `{ctx.author.name}` ({ctx.author.id})')
+                                            await interaction.response.edit_message(content='Sucessfully linked Steam account!', view=None)
+
+                                            # Update Pings
+                                            for app in steam.getUser(id64=target_id).apps:
+                                                if not Ping.exists(steam_id=app.appid):
+                                                    Ping(name=app.name, steam_id=app.appid)
+
+
+                                    # Abort override
+                                    @discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶')
+                                    async def abort(self, _, interaction: discord.Interaction) -> None:
+                                        log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) aborted Steam account override')
+                                        await interaction.response.edit_message(content='You aborted Steam account override.', view=None)
+
+                                log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) already has linked Steam account')
+                                await interaction.response.send_message('You already have a linked Steam account. Do you want to override the old account, or keep it?', view=VerifySteamOverride())
+                                return
+
+                            # Link Steam account
+                            db_user.steam_id = target_id
+                            log.info(f"Succesfully linked Steam account `{target_id}` to user `{ctx.author.name}` ({ctx.author.id})")
+                            await interaction.response.send_message('Sucessfully linked Steam account!')
+
+                            # Update Pings
+                            for app in steam.getUser(id64=target_id).apps:
+                                if not Ping.exists(steam_id=app.appid):
+                                    Ping(name=app.name, steam_id=app.appid)
+
+                # Launch LinkSteam Modal
+                log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) is linking a Steam account')
+                await interaction.response.send_modal(LinkSteam())
+
+            @discord.ui.button(label='Subscribe', style=discord.ButtonStyle.grey, emoji='📬')
+            async def subscribe(self, button, interaction: discord.Interaction) -> None:
+                await interaction.response.send_modal(Subscribe()) # TODO implement subscribe menu
+
+            @discord.ui.button(label='Unsubscribe', style=discord.ButtonStyle.grey, emoji='📭')
+            async def unsubscribe(self, button, interaction: discord.Interaction) -> None:
+                await interaction.response.send_modal(Unsubscribe()) # TODO implement unsubscribe menu
+
+        with db_session:
+            if not User.exists(discord_id=ctx.author.id):
+                log.error(f'User `{ctx.author.name}` ({ctx.author.id}) not in database')
+                await ctx.send('You are not in the database! Contact an admin.')
+                return
+
+        await ctx.author.send('Welcome to the Ping setup menu! Here you can sub- and unsubscribe from Pings, and link your Steam account. Any games in your Steam library will automatically be added to your subscribed Pings. For all Ping related commands, use `$help ping`.', view=PingSetup()) # TODO implement $help ping
+        await ctx.reply('The Ping setup menu has been sent to your DM\'s.', mention_author=False)

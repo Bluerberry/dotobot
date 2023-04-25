@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 # ---------------------> History
+
 
 class Summary:
     def __init__(self, ctx, embed):
@@ -39,7 +41,9 @@ class History:
 
 history = History()
 
+
 # ---------------------> Wrappers
+
 
 # Wraps around commands to make it dev only
 #   - outgoing func signature does not change
@@ -92,6 +96,10 @@ def default_command(thesaurus: dict[str, str] = {}):
             return await func(self, ctx, flags, params)
         return wrapped
     return wrapper
+
+
+# ---------------------> Utility Functions
+
 
 # Returns default, empty embed.
 #   - title & description are header strings                default is empty

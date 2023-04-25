@@ -4,7 +4,7 @@ from .base import db
 
 class User(db.Entity):
     discord_id = Required(int, unique=True, size=64)
-    steam_id = Optional(int)
+    steam_id = Optional(int, size=64)
 
     blacklisted_pings = Optional(IntArray)
     whitelisted_pings = Optional(IntArray)
