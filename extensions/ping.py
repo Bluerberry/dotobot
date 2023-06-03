@@ -34,14 +34,13 @@ def teardown(bot: commands.Bot) -> None:
 class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.steam = None
         self.steam = steam.Client(getenv('STEAM_TOKEN'))
 
     @commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
     @util.default_command()
     async def ping(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
         pass
-    
+
     @ping.command(name='setup', description='Ping setup')
     @util.default_command(thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
@@ -64,7 +63,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         try:
             reply = await ctx.reply('DoSing the Steam API...')
             steam_user = self.steam.getUser(id64=params[0])
-
+        
         except steam.errors.UserNotFound:
             log.warn(f'Invalid SteamID: `{params[0]}`')
             embed = util.default_embed(self.bot, 'Summary', 'Invalid SteamID')
@@ -128,20 +127,35 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 db_user.steam_id = steam_user.id64
                 log.info(f"Succesfully linked Steam account `{steam_user.name}` ({steam_user.id64}) to user `{ctx.author.name}` ({ctx.author.id})")
 
-        with db_session:
-
-            # If Steam account was linked, update ping subscriptions
+            # If Steam account was linked, update ping groups
             status, summary = '', ''
             if db_user.steam_id:
                 await reply.edit(content='DoSing the Steam API...', embed=None, view=None)
                 status = f'Sucessfully linked Steam account `{steam_user.name}` to user `{ctx.author.name}`'
-                for game in steam_user.games:
-                    if not PingGroup.exists(steam_id=game.id):
-                        game.unlazify()
-                        PingGroup(name=game.name, steam_id=game.id)
-                        log.info(f'Created ping `{game.name}` ({game.id})')
-                    summary += f'Subscribed to ping `{game.name}`\n'
-                    log.info(f'Subscribed user `{ctx.author.name}` ({ctx.author.id}) to ping `{game.name}` ({game.id})')
+
+                # Check if steam profile is private
+                if steam_user.private:
+                    summary = 'No subscriptions added, Steam profile is set to private. When you set your profile to public you will be automatically subscribed to all games in your library.'
+                    log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) has their Steam library on private')
+
+                
+                # Update ping groups
+                else:
+                    for game in steam_user.games:
+                        if not PingGroup.exists(steam_id=game.id):
+                            try:
+                                game.unlazify()
+                            except steam.errors.GameNotFound:
+                                continue
+
+                            # Create new ping group
+                            PingGroup(name=game.name, steam_id=game.id)
+                            summary += f'Created, and subscribed to, new ping `{game.name}`'
+                            log.info(f'Created ping `{game.name}` ({game.id})')
+                    
+                        else:                   
+                            summary += f'Subscribed to ping `{game.name}`\n'
+                        log.info(f'Subscribed user `{ctx.author.name}` ({ctx.author.id}) to ping `{game.name}` ({game.id})')
 
             else:
                 status  = 'User aborted Steam account setup'
@@ -157,3 +171,4 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 else:
                     await reply.edit(content=status, view=None)
             return embed
+        
