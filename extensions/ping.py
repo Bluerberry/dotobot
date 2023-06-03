@@ -1,25 +1,27 @@
 
+import asyncio
 import logging
+from os import getenv
 from os.path import basename
 
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
 from pony.orm import db_session
-from steam.steamid import SteamID
-import steamfront
 
+import steam
 import util
-from entities import User, Ping
+from entities import PingGroup, User
 
 # ---------------------> Logging setup
 
-name = basename(__file__)[:-2]
+name = basename(__file__)[:-3]
 log = logging.getLogger(name)
 
-# ---------------------> Steam setup
+# ---------------------> Environment setup
 
-steam = steamfront.Client()
-
+load_dotenv()
+    
 # ---------------------> Ping cog
 
 def setup(bot: commands.Bot) -> None:
@@ -32,97 +34,126 @@ def teardown(bot: commands.Bot) -> None:
 class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self.steam = None
+        self.steam = steam.Client(getenv('STEAM_TOKEN'))
 
     @commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
     @util.default_command()
     async def ping(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
-        await ctx.send('No subcommand invoked! Use `$help ping` for usage.') # TODO implement $help ping
+        pass
     
     @ping.command(name='setup', description='Ping setup')
-    @util.default_command()
-    async def setup(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
-        class PingSetup(discord.ui.View):
-            def __init__(self, *args, **kwargs) -> None:
-                super().__init__(timeout=10, disable_on_timeout=True, *args, **kwargs)
+    @util.default_command(thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
+    async def setup(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
+
+        # Check params
+        if len(params) != 1:
+            log.error(f'Bad parameters given: `{" ".join(params)}`')
+            embed = util.default_embed(self.bot, 'Summary', 'Bad parameters given')
+            embed.add_field(name='ValueError', value=f'User provided the following parameters:\n\t`{" ".join(params)}`\n\nWhile command usage dictates `$ping setup [SteamID] -[flags]`')
+
+            if 'quiet' not in flags:
+                if 'verbose' in flags:
+                    await ctx.reply(embed=embed)
+                else:
+                    await ctx.reply('Bad parameters given')
+            return embed
+
+        # Validate SteamID
+        try:
+            reply = await ctx.reply('DoSing the Steam API...')
+            steam_user = self.steam.getUser(id64=params[0])
+
+        except steam.errors.UserNotFound:
+            log.warn(f'Invalid SteamID: `{params[0]}`')
+            embed = util.default_embed(self.bot, 'Summary', 'Invalid SteamID')
+            embed.add_field(name='ValueError', value=f'SteamID `{params[0]}` could not be found. Make sure you provide your Steam ID64, found in your profile url.')
+
+            if 'quiet' not in flags:
+                if 'verbose' in flags:
+                    await reply.edit(content=None, embed=embed)
+                else:
+                    await reply.edit(content='Invalid SteamID')
+            return embed
+        
+        # Link Steam account
+        with db_session:
+            db_user = User.get(discord_id=ctx.author.id)
+
+            # Check if user already has a linked Steam account
+            if db_user.steam_id:
+
+                # Check if override is forced
+                if 'force' in flags:
+                    db_user.steam_id = steam_user.id64
+                    log.info(f'Succesfully overrode Steam account to `{steam_user.name}` ({steam_user.id64}) for user `{ctx.author.name}` ({ctx.author.id})')
+
+                # Prompt user with override
+                else:
+
+                    class VerifySteamOverride(discord.ui.View):
+                        def __init__(self, *args, **kwargs) -> None:
+                            super().__init__(timeout=60, disable_on_timeout=True, *args, **kwargs)
+                            self.input = asyncio.Event()
+
+                        async def await_input(self) -> None:
+                            await self.input.wait()
+
+                        # Override Steam account
+                        @discord.ui.button(label='Override', style=discord.ButtonStyle.green, emoji='📝')
+                        async def override(self, _, interaction: discord.Interaction) -> None:
+                            with db_session:
+                                db_user = User.get(discord_id=ctx.author.id) 
+                                db_user.steam_id = steam_user.id64
+                            
+                            log.info(f'Succesfully overrode Steam account to `{steam_user.name}` ({steam_user.id64}) for user `{ctx.author.name}` ({ctx.author.id})')
+                            await interaction.response.defer()
+                            self.input.set()
+
+                        # Abort override
+                        @discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶')
+                        async def abort(self, _, interaction: discord.Interaction) -> None:
+                            log.info(f'User `{ctx.author.name}` ({ctx.author.id}) aborted Steam account override')
+                            await interaction.response.defer()
+                            self.input.set()
+
+                    view = VerifySteamOverride()
+                    log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) already has linked Steam account')
+                    await reply.edit(content='You already have a linked Steam account. Do you want to override the old account, or keep it?', view=view)
+                    await view.await_input()
 
             # Link Steam account
-            @discord.ui.button(label='Link Steam', style=discord.ButtonStyle.blurple, emoji='🎮')
-            async def link(self, _, interaction: discord.Interaction) -> None:
-                class LinkSteam(discord.ui.Modal):
-                    def __init__(self, *args, **kwargs) -> None:
-                        super().__init__(title='Link Steam', *args, **kwargs)
-                        self.add_item(discord.ui.InputText(label='Steam ID'))
-
-                    async def callback(self, interaction: discord.Interaction) -> None:
-
-                        # Validate Steam ID
-                        translator = SteamID(self.children[0].value)
-                        if not translator.is_valid():
-                            log.warn(f'Failed to validate Steam ID `{self.children[0].value}` for user `{ctx.author.name}` ({ctx.author.id})')
-                            await interaction.response.send_message('Failed to validate Steam ID...')
-                            return
-                        target_id = translator.as_64
-
-                        # Check if user already has a linked Steam account
-                        with db_session:
-                            db_user = User.get(discord_id=ctx.author.id)
-                            if db_user.steam_id:
-                                class VerifySteamOverride(discord.ui.View):
-                                    def __init__(self, *args, **kwargs) -> None:
-                                        super().__init__(timeout=60, disable_on_timeout=True, *args, **kwargs)
-
-                                    # Override Steam account
-                                    @discord.ui.button(label='Override', style=discord.ButtonStyle.green, emoji='📝')
-                                    async def override(self, _, interaction: discord.Interaction) -> None:
-                                        with db_session:
-                                            db_user = User.get(discord_id=ctx.author.id)
-                                            db_user.steam_id = target_id
-                                            log.info(f'Succesfully overrode Steam account to `{target_id}` for user `{ctx.author.name}` ({ctx.author.id})')
-                                            await interaction.response.edit_message(content='Sucessfully linked Steam account!', view=None)
-
-                                            # Update Pings
-                                            for app in steam.getUser(id64=target_id).apps:
-                                                if not Ping.exists(steam_id=app.appid):
-                                                    Ping(name=app.name, steam_id=app.appid)
-
-
-                                    # Abort override
-                                    @discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶')
-                                    async def abort(self, _, interaction: discord.Interaction) -> None:
-                                        log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) aborted Steam account override')
-                                        await interaction.response.edit_message(content='You aborted Steam account override.', view=None)
-
-                                log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) already has linked Steam account')
-                                await interaction.response.send_message('You already have a linked Steam account. Do you want to override the old account, or keep it?', view=VerifySteamOverride())
-                                return
-
-                            # Link Steam account
-                            db_user.steam_id = target_id
-                            log.info(f"Succesfully linked Steam account `{target_id}` to user `{ctx.author.name}` ({ctx.author.id})")
-                            await interaction.response.send_message('Sucessfully linked Steam account!')
-
-                            # Update Pings
-                            for app in steam.getUser(id64=target_id).apps:
-                                if not Ping.exists(steam_id=app.appid):
-                                    Ping(name=app.name, steam_id=app.appid)
-
-                # Launch LinkSteam Modal
-                log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) is linking a Steam account')
-                await interaction.response.send_modal(LinkSteam())
-
-            @discord.ui.button(label='Subscribe', style=discord.ButtonStyle.grey, emoji='📬')
-            async def subscribe(self, button, interaction: discord.Interaction) -> None:
-                await interaction.response.send_modal(Subscribe()) # TODO implement subscribe menu
-
-            @discord.ui.button(label='Unsubscribe', style=discord.ButtonStyle.grey, emoji='📭')
-            async def unsubscribe(self, button, interaction: discord.Interaction) -> None:
-                await interaction.response.send_modal(Unsubscribe()) # TODO implement unsubscribe menu
+            else:
+                db_user.steam_id = steam_user.id64
+                log.info(f"Succesfully linked Steam account `{steam_user.name}` ({steam_user.id64}) to user `{ctx.author.name}` ({ctx.author.id})")
 
         with db_session:
-            if not User.exists(discord_id=ctx.author.id):
-                log.error(f'User `{ctx.author.name}` ({ctx.author.id}) not in database')
-                await ctx.send('You are not in the database! Contact an admin.')
-                return
 
-        await ctx.author.send('Welcome to the Ping setup menu! Here you can sub- and unsubscribe from Pings, and link your Steam account. Any games in your Steam library will automatically be added to your subscribed Pings. For all Ping related commands, use `$help ping`.', view=PingSetup()) # TODO implement $help ping
-        await ctx.reply('The Ping setup menu has been sent to your DM\'s.', mention_author=False)
+            # If Steam account was linked, update ping subscriptions
+            status, summary = '', ''
+            if db_user.steam_id:
+                await reply.edit(content='DoSing the Steam API...', embed=None, view=None)
+                status = f'Sucessfully linked Steam account `{steam_user.name}` to user `{ctx.author.name}`'
+                for game in steam_user.games:
+                    if not PingGroup.exists(steam_id=game.id):
+                        game.unlazify()
+                        PingGroup(name=game.name, steam_id=game.id)
+                        log.info(f'Created ping `{game.name}` ({game.id})')
+                    summary += f'Subscribed to ping `{game.name}`\n'
+                    log.info(f'Subscribed user `{ctx.author.name}` ({ctx.author.id}) to ping `{game.name}` ({game.id})')
+
+            else:
+                status  = 'User aborted Steam account setup'
+                summary = 'No subscriptions added.'
+
+            # Give summary
+            embed = util.default_embed(self.bot, 'Summary', status)
+            embed.add_field(name='Subscriptions', value=summary)
+
+            if 'quiet' not in flags:
+                if 'verbose' in flags:
+                    await reply.edit(content=None, embed=embed, view=None)
+                else:
+                    await reply.edit(content=status, view=None)
+            return embed

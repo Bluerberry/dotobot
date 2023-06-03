@@ -11,7 +11,7 @@ import util
 
 # ---------------------> Logging setup
 
-name = basename(__file__)[:-2]
+name = basename(__file__)[:-3]
 log = logging.getLogger(name)
 
 # ---------------------> Environment setup
