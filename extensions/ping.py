@@ -5,10 +5,9 @@ from os import getenv
 from os.path import basename
 
 import discord
-import pony
 from discord.ext import commands
 from dotenv import load_dotenv
-from pony.orm import db_session
+from pony.orm import db_session, select
 
 import steam
 import util
@@ -40,8 +39,74 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     @commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
     @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
-    async def ping(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
-        pass
+    async def ping(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
+                
+        # Check params
+        if len(params) < 1:
+            log.error(f'No parameters given')
+            embed = util.default_embed(self.bot, 'Summary', 'No parameters given')
+            embed.add_field(name='ValueError', value=f'User provided no parameters, while command usage dictates `$ping [query] -[flags]`')
+
+            if 'quiet' not in flags:
+                if 'verbose' in flags:
+                    await ctx.reply(embed=embed)
+                else:
+                    await ctx.reply('No parameters given')
+            return embed
+
+        # Fetch new Steam data and update ping groups
+        with db_session:
+            for db_user in User.select(lambda db_user: db_user.steam_id):
+                steam_user = self.steam.getUser(db_user.steam_id)
+                
+                # Check if Steam profile is private
+                if steam_user.private:
+                    log.warning(f'User `{ await self.bot.fetch_user(db_user.discord_id).name }` ({db_user.discord_id}) has their Steam library on private')
+                    continue
+                
+                # Update ping groups
+                for game in steam_user.games:
+                    if not PingGroup.exists(steam_id=game.id):
+                        try:
+                            game.unlazify()
+                        except steam.errors.GameNotFound:
+                            log.warning(f'No game with id ({game.id}) could be found in the Steam store')
+                            continue
+
+                        # Create new ping group
+                        PingGroup(name=game.name, steam_id=game.id)
+                        log.info(f'Created ping `{game.name}` ({game.id})')
+        
+        # Search ping groups
+        with db_session:
+            options = select(pg.name for pg in PingGroup)
+            result = util.fuzzy_search(options, ' '.join(params))
+            pingGroup = PingGroup.get(name=result[0]['name'])
+
+            # Find subscribers
+            subscribers = list(User.select(lambda db_user: pingGroup.id in db_user.whitelisted_pings))
+            if pingGroup.steam_id != None:
+                for db_user in User.select(lambda db_user: db_user.steam_id):
+
+                    # Check if ping group is blacklisted
+                    if pingGroup.id in db_user.blacklisted_pings:
+                        continue
+
+                    # Check if Steam profile is private
+                    steam_user = self.steam.getUser(db_user.steam_id)
+                    if steam_user.private:
+                        log.warning(f'User `{ await self.bot.fetch_user(db_user.discord_id).name }` ({db_user.discord_id}) has their Steam library on private')
+                        continue
+
+                    # Check if ping group is in library
+                    if pingGroup.steam_id in [game.id for game in steam_user.games] and db_user not in subscribers:
+                        subscribers.append(db_user)
+
+            message = ''
+            for db_user in subscribers:
+                discord_user = await self.bot.fetch_user(db_user.discord_id)
+                message += f'{discord_user.mention} '
+            await ctx.reply(message)
 
     @ping.command(name='setup', description='Ping setup')
     @util.default_command(thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})

@@ -2,12 +2,12 @@
 name = "dotobot-v5"
 version = "0.1.0"
 description = ""
-authors = ["authors?"]
+authors = ["Bram Kreulen", "Maurits Kienhuis"]
 readme = "README.md"
 packages = [{include = "dotobot_v5"}]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 pony = "^0.7.16"
 py-cord = "^2.3.2"
 python-dotenv = "^0.21.1"
