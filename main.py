@@ -1,6 +1,7 @@
 
+import json
 import logging
-from logging import config
+import logging.config
 from os import getenv
 
 import discord
@@ -13,8 +14,9 @@ from entities import User, db
 
 # ---------------------> Logging setup
 
-config.fileConfig('log.conf')
 log = logging.getLogger('root')
+with open('logConfig.json') as file:
+    logging.config.dictConfig(json.load(file))
 
 # ---------------------> Environment setup
 
