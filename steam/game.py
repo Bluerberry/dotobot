@@ -1,5 +1,6 @@
 
 from requests import get as _get
+
 from .errors import GameNotFound as _GameNotFound
 
 class Game:
@@ -31,4 +32,4 @@ class Game:
 		self.lazy = False
 		self.raw_gamedata = gamedata
 		self.id = str(gamedata['steam_appid'])
-		self.name = gamedata['name'].encode('utf8')
+		self.name = gamedata['name']

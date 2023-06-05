@@ -157,3 +157,80 @@ def extension_path(extension: str, sys_path: str = 'extensions', recursive: bool
 
 def extension_name(extension_path: str) -> str:
     return extension_path.split('.')[-1]
+
+
+# Sorts a list of options based on overlap with, and distance to the given query
+#   - options is a list of strings to match the query to
+#   - query is a string of non-zero length
+#   - Return type is an ordered list of dictionaries with the fields { name, sanitized, overlap, distance }
+#   - The return type is ordered first by the largest overlap, then by the smallest distance
+
+def fuzzy_search(options: list[str], query: str) -> list[dict]:
+    def sanitize(input: str) -> str:
+        output = input.lower()
+        filter = regex.compile('[^\w ]')
+        return filter.sub('', output)
+
+    def overlap(a: str, b: str) -> int:
+        m, n, best = len(a), len(b), 0
+        lengths = [[0 for _ in range(n + 1)] for _ in range(2)]
+
+        # Check values
+        if m == 0 or n == 0:
+            raise ValueError('Input strings must be of non-zero length')
+
+        # Dynamic programming shenanigans keeping track of longest suffix
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if a[i - 1] == b[j - 1]:
+                    lengths[i % 2][j] = lengths[(i - 1) % 2][j - 1] + 1
+                    if lengths[i % 2][j] > best:
+                        best = lengths[i % 2][j]
+                else:
+                    lengths[i % 2][j] = 0
+
+        return best
+
+    def distance(a: str, b: str) -> int:
+        m, n = len(a), len(b)
+        prev = [i for i in range(n + 1)]
+        curr = [0 for _ in range(n + 1)]
+
+        # Check values
+        if m == 0 or n == 0:
+            raise ValueError('Input strings must be of non-zero length')
+
+        # Dynamic programming shenanigans
+        for i in range(m):
+            curr[0] = i + 1
+
+            # Find edit cost
+            for j in range(n):
+                del_cost = prev[j + 1] + 1
+                ins_cost = curr[j] + 1
+                sub_cost = prev[j] + int(a[i] != b[j])
+                curr[j + 1] = min(del_cost, ins_cost, sub_cost)
+
+            # Copy curr to prev
+            for j in range(n + 1):
+                prev[j] = curr[j]
+
+        return prev[n]
+
+    # Sanitize options
+    results = [{
+     'name': option,
+     'sanitized': sanitize(option),
+     'overlap': None,
+     'distance': None
+    } for option in options]
+
+    # Calculate scores
+    for result in results:
+        result['overlap'] = overlap(query, result['sanitized'])
+        result['distance'] = distance(query, result['sanitized'])
+
+    results.sort(key=lambda result: result['distance'])
+    results.sort(key=lambda result: result['overlap'], reverse=True)
+
+    return results

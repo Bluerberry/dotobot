@@ -1,7 +1,4 @@
 
-class MissingArguments(ValueError):
-	pass
-
 class GameNotFound(Exception):
 	pass
 

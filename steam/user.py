@@ -1,8 +1,9 @@
 
 from requests import get as _get
-from steam import Game as _Game
-from steam.errors import GameNotFound as _GameNotFound
-from steam.errors import UserNotFound as _UserNotFound
+
+from .game import Game as _Game
+from .errors import GameNotFound as _GameNotFound
+from .errors import UserNotFound as _UserNotFound
 
 class User:
 	def __init__(self, token, id64, lazy=True) -> None:
@@ -17,11 +18,11 @@ class User:
 			raise _UserNotFound('The specified user could not be found')
 
 		# Store data
+		self.lazy = lazy
 		self.raw_userdata = userdata
 		self.id64 = userdata['steamid']
 		self.name = userdata['personaname']
 		self.private = {1: True, 3: False}[userdata['communityvisibilitystate']]
-		self.lazy = lazy
 
 		if self.private:
 			return
@@ -33,11 +34,11 @@ class User:
 
 		# Parse data
 		self.raw_gamedata = gamedata
-		self.game_count = rawdata['response']['game_count']
 		self.games = []
+
 		for game in gamedata:
 			try:
-				self.games.append(_Game(game['appid'], lazy))
+				self.games.append(_Game(str(game['appid']), lazy))
 			except _GameNotFound:
 				pass
 	
