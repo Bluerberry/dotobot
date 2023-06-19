@@ -6,7 +6,7 @@ from .errors import GameNotFound as _GameNotFound
 from .errors import UserNotFound as _UserNotFound
 
 class User:
-	def __init__(self, token, id64, lazy=True) -> None:
+	def __init__(self, token: str, id64: int, lazy: bool=True) -> None:
 
 		# Get userdata
 		site = _get(f'http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={token}&steamids={id64}&format=json')
@@ -20,7 +20,7 @@ class User:
 		# Store data
 		self.lazy = lazy
 		self.raw_userdata = userdata
-		self.id64 = userdata['steamid']
+		self.id64 = int(userdata['steamid'])
 		self.name = userdata['personaname']
 		self.private = {1: True, 3: False}[userdata['communityvisibilitystate']]
 
@@ -38,7 +38,7 @@ class User:
 
 		for game in gamedata:
 			try:
-				self.games.append(_Game(str(game['appid']), lazy))
+				self.games.append(_Game(game['appid'], lazy))
 			except _GameNotFound:
 				pass
 	

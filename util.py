@@ -3,7 +3,7 @@ import re as regex
 from glob import iglob
 from os import getenv
 from os.path import join
-from typing import Generator
+from typing import Generator, Tuple
 
 import discord
 from discord.ext import commands
@@ -11,29 +11,44 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+MAX_FUZZY_DISTANCE = 3
+MAX_FUZZY_OVERLAP = 1
+
 
 # ---------------------> History
 
 
 class Summary:
-    def __init__(self, ctx, embed):
-        self.embed = embed
+    def __init__(self, ctx: commands.Context, header: str='als je dit leest trek een bak'):
         self.ctx = ctx
+        self.header = header
+        self.fields = {}
+
+    def makeEmbed(self) -> discord.Embed:
+        embed = default_embed(self.ctx.bot, 'Summary', self.header)
+        for name, value in self.fields.items():
+            embed.add_field(name=name, value=value)
+        return embed
+
+    def setHeader(self, header: str) -> None:
+        self.header = header
+
+    def setField(self, name: str, value: str) -> None:
+        self.fields[name] = value
 
 class History:
     history = []
 
-    def add(self, ctx, embed) -> None:
-        self.history.append(Summary(ctx, embed)) # Add to history
+    def add(self, summary: Summary) -> None:
+        self.history.append(summary) # Add to history
         self.history = self.history[:10]         # Trim history
 
     def last(self) -> Summary | None:
         if len(self.history) == 0:
             return None
-
         return self.history[-1]
 
-    def search(self, id) -> Summary | None:
+    def search(self, id: int) -> Summary | None:
         for summary in self.history:
             if summary.ctx.message.id == id:
                 return summary
@@ -51,11 +66,11 @@ history = History()
 
 def dev_only():
     def predicate(ctx):
-        return str(ctx.author.id) in getenv('DEVELOPER_IDS')
+        return str(ctx.author.id) in getenv('DEVELOPER_IDS')    
     return commands.check(predicate)
 
 # Wraps around commands to add summary to history
-#   - incoming func MUST return discord.Embed
+#   - incoming func MUST return Summary
 #   - outgoing func signature does not change
 #   - decorator should be placed below @bot.command() decorator
 
@@ -63,11 +78,12 @@ def summarized():
     def wrapper(func):
         async def wrapped(self, ctx, *args, **kwargs):
             summary = await func(self, ctx, *args, **kwargs)
-            history.add(ctx, summary)
+            history.add(summary)
             return summary
+        
+        wrapped.summarized = True
         return wrapped
     return wrapper
-
 
 # Wraps around commands to split args into flags and params.
 #   - incoming func MUST follow async (self, ctx, flags, params) -> Any
@@ -93,7 +109,19 @@ def default_command(thesaurus: dict[str, str] = {}):
                 else:
                     params.append(arg)
 
-            return await func(self, ctx, flags, params)
+            # Give summary
+            return_value = await func(self, ctx, flags, params)
+            if hasattr(func, 'summarized'):
+                print(return_value)
+                if 'quiet' not in flags:
+                    if 'verbose' in flags:
+                        await ctx.reply(embed=return_value.makeEmbed())
+                    else:
+                        await ctx.reply(return_value.header)
+
+            return return_value
+        
+        wrapped.default_command = True
         return wrapped
     return wrapper
 
@@ -158,14 +186,13 @@ def extension_path(extension: str, sys_path: str = 'extensions', recursive: bool
 def extension_name(extension_path: str) -> str:
     return extension_path.split('.')[-1]
 
-
 # Sorts a list of options based on overlap with, and distance to the given query
 #   - options is a list of strings to match the query to
 #   - query is a string of non-zero length
 #   - Return type is an ordered list of dictionaries with the fields { name, sanitized, overlap, distance }
 #   - The return type is ordered first by the largest overlap, then by the smallest distance
 
-def fuzzy_search(options: list[str], query: str) -> list[dict]:
+def fuzzy_search(options: list[str], query: str) -> Tuple[bool, list[dict]]:
     def sanitize(input: str) -> str:
         output = input.lower()
         filter = regex.compile('[^\w ]')
@@ -225,7 +252,7 @@ def fuzzy_search(options: list[str], query: str) -> list[dict]:
      'distance': None
     } for option in options]
 
-    # Calculate scores
+    # Sort results
     for result in results:
         result['overlap'] = overlap(query, result['sanitized'])
         result['distance'] = distance(query, result['sanitized'])
@@ -233,4 +260,10 @@ def fuzzy_search(options: list[str], query: str) -> list[dict]:
     results.sort(key=lambda result: result['distance'])
     results.sort(key=lambda result: result['overlap'], reverse=True)
 
-    return results
+    # Check if results are conclusive
+    conclusive = True
+    if len(results) > 1:
+        conclusive = results[0]['overlap'] > results[1]['overlap'] + MAX_FUZZY_OVERLAP or \
+                     results[0]['distance'] > results[1]['distance'] + MAX_FUZZY_DISTANCE
+
+    return conclusive, results

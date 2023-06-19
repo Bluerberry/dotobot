@@ -4,7 +4,7 @@ from requests import get as _get
 from .errors import GameNotFound as _GameNotFound
 
 class Game:
-	def __init__(self, id: str, lazy: bool=True) -> None:
+	def __init__(self, id: int, lazy: bool=True) -> None:
 		self.lazy = lazy
 		self.id = id
 
@@ -24,12 +24,12 @@ class Game:
 		site = _get(f'http://store.steampowered.com/api/appdetails?appids={self.id}&format=json')
 		rawdata = site.json()
 
-		if not rawdata or not rawdata[self.id]['success']:
+		if not rawdata or not rawdata[str(self.id)]['success']:
 			raise _GameNotFound('The specified game could not be found')
-		gamedata = rawdata[self.id]['data']
+		gamedata = rawdata[str(self.id)]['data']
 
 		# Store appdetails
 		self.lazy = False
 		self.raw_gamedata = gamedata
-		self.id = str(gamedata['steam_appid'])
+		self.id = gamedata['steam_appid']
 		self.name = gamedata['name']
