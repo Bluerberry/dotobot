@@ -11,29 +11,53 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MAX_FUZZY_DISTANCE = 3
-MAX_FUZZY_OVERLAP = 1
-
+MIN_RELATIVE_OVERLAP = 0.5
+FUZZY_OVERLAP_MARGIN = 1
+MAX_RELATIVE_DISTANCE = 0.5
+FUZZY_DISTANCE_MARGIN = 3
 
 # ---------------------> History
 
 
-class Summary:
-    def __init__(self, ctx: commands.Context, header: str='als je dit leest trek een bak'):
+class Dialog:
+    def __init__(self, ctx: commands.Context) -> None:
         self.ctx = ctx
-        self.header = header
-        self.fields = {}
+        self.dialog = None
+    
+    async def set(self, *args, **kwargs) -> discord.Message:
+        if self.dialog == None:
+            self.dialog = await self.ctx.reply(*args, **kwargs)
+        else:
+            self.dialog = await self.dialog.edit(*args, **kwargs)
+        return self.dialog
 
-    def makeEmbed(self) -> discord.Embed:
+    async def add(self, *args, **kwargs) -> discord.Message:
+        return await self.ctx.reply(*args, **kwargs)
+
+    async def cleanup(self) -> None:
+        if self.dialog:
+            await self.dialog.delete()
+
+class Summary:
+    def __init__(self, ctx: commands.Context, send_on_return: bool = True):
+        self.ctx = ctx
+        self.fields = {}
+        self.send_on_return = send_on_return
+
+    def make_embed(self) -> discord.Embed | None:
+        if not self.header:
+            return None
+
         embed = default_embed(self.ctx.bot, 'Summary', self.header)
         for name, value in self.fields.items():
             embed.add_field(name=name, value=value)
+
         return embed
 
-    def setHeader(self, header: str) -> None:
+    def set_header(self, header: str) -> None:
         self.header = header
 
-    def setField(self, name: str, value: str) -> None:
+    def set_field(self, name: str, value: str) -> None:
         self.fields[name] = value
 
 class History:
@@ -109,11 +133,12 @@ def default_command(thesaurus: dict[str, str] = {}):
                 else:
                     params.append(arg)
 
-            # Give summary
+            # Call function
             return_value = await func(self, ctx, flags, params)
+
+            # Give summary
             if hasattr(func, 'summarized'):
-                print(return_value)
-                if 'quiet' not in flags:
+                if return_value.send_on_return and 'quiet' not in flags:
                     if 'verbose' in flags:
                         await ctx.reply(embed=return_value.makeEmbed())
                     else:
@@ -249,21 +274,28 @@ def fuzzy_search(options: list[str], query: str) -> Tuple[bool, list[dict]]:
      'name': option,
      'sanitized': sanitize(option),
      'overlap': None,
-     'distance': None
-    } for option in options]
+     'relative_overlap': None,
+     'distance': None,
+     'relative_distance': None
+    } for option in options[:min(5, len(options))]]
 
-    # Sort results
+    # Calculate scores
     for result in results:
         result['overlap'] = overlap(query, result['sanitized'])
+        result['relative_overlap'] = result['overlap'] / len(result['sanitized'])
         result['distance'] = distance(query, result['sanitized'])
+        result['relative_distance'] = result['distance'] / len(result['sanitized'])
 
+    # Sort results
     results.sort(key=lambda result: result['distance'])
     results.sort(key=lambda result: result['overlap'], reverse=True)
 
     # Check if results are conclusive
-    conclusive = True
-    if len(results) > 1:
-        conclusive = results[0]['overlap'] > results[1]['overlap'] + MAX_FUZZY_OVERLAP or \
-                     results[0]['distance'] > results[1]['distance'] + MAX_FUZZY_DISTANCE
+    conclusive = results[0]['relative_overlap'] > MIN_RELATIVE_OVERLAP and                      \
+                 results[0]['relative_distance'] < MAX_RELATIVE_DISTANCE and (                  \
+                     results[0]['overlap'] > results[1]['overlap'] + FUZZY_OVERLAP_MARGIN or    \
+                     results[0]['distance'] < results[1]['distance'] - FUZZY_DISTANCE_MARGIN or \
+                     len(results) < 2                                                           \
+                 )
 
     return conclusive, results

@@ -59,7 +59,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             return
 
         # Provide summary
-        await summary.ctx.reply(embed=summary.makeEmbed())
+        await summary.ctx.reply(embed=summary.make_embed())
 
     @commands.command(name='load', description='Loads extensions by name.')
     @util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
@@ -98,14 +98,14 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
         # Build summary
         if (total := len(params)) == 0:
-            summary.setHeader('No extension have loaded')
-            summary.setField('Extensions', field)
+            summary.set_header('No extension have loaded')
+            summary.set_field('Extensions', field)
         elif total == success:
-            summary.setHeader('All extensions have loaded')
-            summary.setField('Extensions', field)
+            summary.set_header('All extensions have loaded')
+            summary.set_field('Extensions', field)
         else:
-            summary.setHeader(f'{success} out of {total} extensions have loaded')
-            summary.setField('Extensions', field)
+            summary.set_header(f'{success} out of {total} extensions have loaded')
+            summary.set_field('Extensions', field)
 
         return summary
 
@@ -150,14 +150,14 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
         # Build summary
         if (total := len(params)) == 0:
-            summary.setHeader('No extension have unloaded')
-            summary.setField('Extensions', field)
+            summary.set_header('No extension have unloaded')
+            summary.set_field('Extensions', field)
         elif total == success:
-            summary.setHeader('All extensions have unloaded')
-            summary.setField('Extensions', field)
+            summary.set_header('All extensions have unloaded')
+            summary.set_field('Extensions', field)
         else:
-            summary.setHeader(f'{success} out of {total} extensions have unloaded')
-            summary.setField('Extensions', field)
+            summary.set_header(f'{success} out of {total} extensions have unloaded')
+            summary.set_field('Extensions', field)
 
         return summary
 
@@ -198,14 +198,14 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
         # Build summary
         if (total := len(params)) == 0:
-            summary.setHeader('No extension have reloaded')
-            summary.setField('Extensions', field)
+            summary.set_header('No extension have reloaded')
+            summary.set_field('Extensions', field)
         elif total == success:
-            summary.setHeader('All extensions have reloaded')
-            summary.setField('Extensions', field)
+            summary.set_header('All extensions have reloaded')
+            summary.set_field('Extensions', field)
         else:
-            summary.setHeader(f'{success} out of {total} extensions have reloaded')
-            summary.setField('Extensions', field)
+            summary.set_header(f'{success} out of {total} extensions have reloaded')
+            summary.set_field('Extensions', field)
 
         return summary
 
@@ -236,15 +236,15 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
         # Feedback
         if (total := len(params)) == 0:
-            summary.setHeader('No extensions are active')
-            summary.setField('Extensions', field)
+            summary.set_header('No extensions are active')
+            summary.set_field('Extensions', field)
 
         elif total == active:
-            summary.setHeader('All extensions are active')
-            summary.setField('Extensions', field)
+            summary.set_header('All extensions are active')
+            summary.set_field('Extensions', field)
             
         else:
-            summary.setHeader(f'{active} out of {total} extensions are active')
-            summary.setField('Extensions', field)
+            summary.set_header(f'{active} out of {total} extensions are active')
+            summary.set_field('Extensions', field)
 
-        await ctx.reply(embed=summary.makeEmbed())
+        await ctx.reply(embed=summary.make_embed())
