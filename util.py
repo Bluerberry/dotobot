@@ -269,6 +269,10 @@ def fuzzy_search(options: list[str], query: str) -> Tuple[bool, list[dict]]:
 
         return prev[n]
 
+    # Sanitize input
+    if len(options) < 1:
+        return False, []
+
     # Sanitize options
     results = [{
      'name': option,
@@ -277,7 +281,7 @@ def fuzzy_search(options: list[str], query: str) -> Tuple[bool, list[dict]]:
      'relative_overlap': None,
      'distance': None,
      'relative_distance': None
-    } for option in options[:min(5, len(options))]]
+    } for option in options]
 
     # Calculate scores
     for result in results:
@@ -291,11 +295,11 @@ def fuzzy_search(options: list[str], query: str) -> Tuple[bool, list[dict]]:
     results.sort(key=lambda result: result['overlap'], reverse=True)
 
     # Check if results are conclusive
-    conclusive = results[0]['relative_overlap'] > MIN_RELATIVE_OVERLAP and                      \
-                 results[0]['relative_distance'] < MAX_RELATIVE_DISTANCE and (                  \
-                     results[0]['overlap'] > results[1]['overlap'] + FUZZY_OVERLAP_MARGIN or    \
-                     results[0]['distance'] < results[1]['distance'] - FUZZY_DISTANCE_MARGIN or \
-                     len(results) < 2                                                           \
+    conclusive = results[0]['relative_overlap'] > MIN_RELATIVE_OVERLAP and                   \
+                 results[0]['relative_distance'] < MAX_RELATIVE_DISTANCE and (               \
+                     len(results) < 2 or                                                     \
+                     results[0]['overlap'] > results[1]['overlap'] + FUZZY_OVERLAP_MARGIN or \
+                     results[0]['distance'] < results[1]['distance'] - FUZZY_DISTANCE_MARGIN \
                  )
 
     return conclusive, results

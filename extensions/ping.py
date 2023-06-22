@@ -8,7 +8,7 @@ from random import choice
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-from pony.orm import db_session, select
+from pony.orm import db_session, select, commit
 
 import steam
 import util
@@ -215,34 +215,24 @@ class VaguePingGroup(discord.ui.View):
         self.resolved.set()
 
 class VerifySteamOverride(discord.ui.View):
-    def __init__(self, summary: util.Summary | None = None, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.responded = asyncio.Event()
-        self.summary = summary
         self.result = None
 
-    # Blocks until any button has been pressed, then disables all items
     async def await_response(self) -> None:
         await self.responded.wait()
         self.disable_all_items()
 
-    # Override Steam account
     @discord.ui.button(label='Override', style=discord.ButtonStyle.green, emoji='📝')
     async def override(self, _, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
-
         self.result = True
         self.responded.set()
 
-    # Abort override
     @discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶')
     async def abort(self, _, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
-
-        if self.summary:
-            self.summary.set_header('User aborted Steam account override')
-            self.summary.set_field('Subscriptions', 'No subscriptions added.')
-
         self.result = False
         self.responded.set()   
 
@@ -262,6 +252,8 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         self.steam = steam.Client(getenv('STEAM_TOKEN'))
 
     def find_subscribers(self, ping_id: int) -> list[int]:
+        # TODO maybe move find_subscribers inside ping command. currently thats the only reference
+       
         with db_session:
 
             # Find explicit subscribers
@@ -279,6 +271,8 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return subscribers
 
     async def update_pings(self, summary: util.Summary | None = None) -> None:
+        # TODO fix the issue where it doesnt detect Metro Exodus for some reason
+        
         with db_session:
 
             # Fetch new Steam data and update ping groups
@@ -337,6 +331,13 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             options = select(pg.name for pg in entities.PingGroup)
             conclusive, results = util.fuzzy_search(options, ' '.join(params))
 
+            if not results:
+                log.warning('No ping groups found')
+                summary.set_header('No ping groups found')
+                await dialog.cleanup()
+                return summary
+
+
             # Results were conclusive
             if conclusive:
                 pingGroup = entities.PingGroup.get(name=results[0]['name'])
@@ -345,7 +346,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             # Results weren't conclusive, send VaguePingGroup menu
             else:
                 log.debug(f'Search results were inconclusive')
-                view = VaguePingGroup(ctx.author, [result['name'] for result in results])
+                view = VaguePingGroup(ctx.author, [result['name'] for result in results[:min(5, len(results))]])
                 await dialog.set('Search results were inconclusive! Did you mean any of these Ping groups?', view=view)
                 result = await view.await_resolution()
 
@@ -372,7 +373,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 f'Inspiratie is voor de inspiratielozen. Something something {pingGroup.name}.\n'
             ]) + ' '.join([user.mention for user in discord_users])
 
-            await dialog.add(message, view=None)
+            await dialog.add(message, view=None, mention_author=False)
 
         summary.send_on_return = False
         summary.set_header('Successfully sent out Ping')
@@ -383,7 +384,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     @ping.command(name='setup', description='Ping setup')
     @util.default_command(thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
-    async def setup(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
+    async def setup(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -419,13 +420,15 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) already has linked Steam account')
                 
                 # Prompt with override
-                view = VerifySteamOverride(summary)
+                view = VerifySteamOverride()
                 await dialog.set('You already have a linked Steam account. Do you want to override the old account, or keep it?', view=view)
                 await view.await_response()
 
                 # Cleanup
                 if not view.result:
                     log.info(f'User `{ctx.author.name}` ({ctx.author.id}) aborted ping setup')
+                    summary.set_field('Subscriptions', 'No subscriptions added.')
+                    summary.set_header('User aborted Ping setup')
                     await dialog.cleanup()
                     return summary
                 
@@ -452,3 +455,48 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         await self.update_pings(summary)
         await dialog.cleanup()            
         return summary
+
+    @ping.command(name='add', description='Add a Ping group')
+    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
+    async def add(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
+
+        # Check params
+        if len(params) < 1:
+            log.error(f'No parameters given')
+            summary.set_header('No parameters given')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] -[flags]`')
+            await dialog.cleanup()
+            return summary
+        
+        # Update pings
+        if 'quiet' not in flags:
+            await dialog.set('DoSsing the Steam API...')
+        await self.update_pings(summary)
+
+        # Search ping groups
+        with db_session:
+            options = select(pg.name for pg in entities.PingGroup)
+            conclusive, results = util.fuzzy_search(options, ' '.join(params))
+
+            # If conclusive, there is another pinggroup with a conflicting name
+            if conclusive:
+                log.warn(f'Failed to create Ping group by name of `{" ".join(params)}` due to conflicting Ping group `{results[0]["name"]}`')
+                summary.set_header('Failed to create Ping group')
+                summary.set_field('ConflictingNameError', f'There already is a similar Ping group with the name `{results[0]["name"]}`. If your new Ping group targets a different audience, try giving it a different name. Stupid.')
+                await dialog.cleanup()
+                return summary
+
+            # Create new ping group
+            pingGroup = entities.PingGroup(name=' '.join(params))
+            commit()
+            pingGroup = entities.PingGroup.get(name=' '.join(params))
+            log.info(f'Created new ping group `{pingGroup.name}` ({pingGroup.id}) at the request of user `{ctx.author.name}` ({ctx.author.id})')
+    
+        summary.set_header(f'Successfully created Ping group `{pingGroup.name}`')
+        await dialog.cleanup()
+        return summary
+
+    @ping.command(name='subscribe', description='Subscribe to a Ping group')
