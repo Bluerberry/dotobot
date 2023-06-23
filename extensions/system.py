@@ -2,10 +2,10 @@
 import logging
 from os.path import basename
 
+import dotenv
 import discord
 from discord import ExtensionAlreadyLoaded, ExtensionNotFound, ExtensionNotLoaded
 from discord.ext import commands
-from dotenv import load_dotenv
 
 import util
 
@@ -20,7 +20,7 @@ log = logging.getLogger(name)
 # ---------------------> Environment setup
 
 
-load_dotenv()
+dotenv.load_dotenv()
 
 
 # ---------------------> System cog

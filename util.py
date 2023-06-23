@@ -5,18 +5,24 @@ from os import getenv
 from os.path import join
 from typing import Generator, Tuple
 
+import dotenv
 import discord
 from discord.ext import commands
-from dotenv import load_dotenv
-
-load_dotenv()
 
 MIN_RELATIVE_OVERLAP = 0.5
 FUZZY_OVERLAP_MARGIN = 1
 MAX_RELATIVE_DISTANCE = 0.5
 FUZZY_DISTANCE_MARGIN = 3
 
-# ---------------------> History
+
+# ---------------------> Environment setup
+
+
+dotenv.load_dotenv()
+
+
+
+# ---------------------> Classes
 
 
 class Dialog:
@@ -48,7 +54,7 @@ class Summary:
         if not self.header:
             return None
 
-        embed = default_embed(self.ctx.bot, 'Summary', self.header)
+        embed = DefaultEmbed(self.ctx.bot, 'Summary', self.header)
         for name, value in self.fields.items():
             embed.add_field(name=name, value=value)
 
@@ -77,6 +83,27 @@ class History:
             if summary.ctx.message.id == id:
                 return summary
         return None
+
+class DefaultEmbed(discord.Embed):
+    def __init__(self, bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> None:
+        palette = [
+            discord.Colour.from_rgb(255, 89,  94 ), # Red
+            discord.Colour.from_rgb(255, 202, 58 ), # Yellow
+            discord.Colour.from_rgb(138, 201, 38 ), # Green
+            discord.Colour.from_rgb(25,  130, 196), # Blue
+            discord.Colour.from_rgb(106, 76,  147)  # Purple
+        ]
+
+        super().__init__(
+            title=title,
+            description=description,
+            color=palette[color % 5]
+        )
+
+        if author:
+            self.set_author(name=bot.user.name)
+        if footer:
+            self.set_footer(text=f'Powered by {bot.user.name}')
 
 history = History()
 
@@ -153,34 +180,6 @@ def default_command(thesaurus: dict[str, str] = {}):
 
 # ---------------------> Utility Functions
 
-
-# Returns default, empty embed.
-#   - title & description are header strings                default is empty
-#   - author toggles author                                 default is False
-#   - footer toggles footer                                 default is True
-#   - color loops through rainbow color palette             default is red
-
-def default_embed(bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> discord.Embed:
-    palette = [
-        discord.Colour.from_rgb(255, 89,  94 ), # Red
-        discord.Colour.from_rgb(255, 202, 58 ), # Yellow
-        discord.Colour.from_rgb(138, 201, 38 ), # Green
-        discord.Colour.from_rgb(25,  130, 196), # Blue
-        discord.Colour.from_rgb(106, 76,  147)  # Purple
-    ]
-
-    embed = discord.Embed(
-        title=title,
-        description=description,
-        color=palette[color % 5]
-    )
-
-    if author:
-        embed.set_author(name=bot.user.name) # TODO maybe add an icon?
-    if footer:
-        embed.set_footer(text=f'Powered by {bot.user.name}')
-
-    return embed
 
 # Yields all extension files in path.
 #   - sys_path contains path to extensions                  default is 'extensions'
