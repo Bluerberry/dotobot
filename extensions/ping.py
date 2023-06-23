@@ -5,10 +5,10 @@ from os import getenv
 from os.path import basename
 from random import choice
 
+import dotenv
 import discord
 from discord.ext import commands
-from dotenv import load_dotenv
-from pony.orm import db_session, select, commit
+import pony.orm as pony
 
 import steam
 import util
@@ -25,7 +25,7 @@ log = logging.getLogger(name)
 # ---------------------> Environment setup
 
 
-load_dotenv()
+dotenv.load_dotenv()
 
 
 # ---------------------> UI components
@@ -34,7 +34,7 @@ load_dotenv()
 class SelectPingGroup(discord.ui.Select):
     def __init__(self, parent: discord.ui.View, options: list[str], *args, **kwargs) -> None:
         super().__init__(
-            placeholder='Select a Ping group', 
+            placeholder='Select a ping group', 
             options=[discord.SelectOption(label=option, value=option) for option in options], 
             *args, **kwargs
         )
@@ -100,6 +100,7 @@ class VerifySteamOverride(discord.ui.View):
         self.result = False
         self.responded.set()   
 
+
 # ---------------------> Ping cog
 
 
@@ -118,7 +119,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     async def update_pings(self, summary: util.Summary | None = None) -> None:
         # TODO fix the issue where it doesnt detect Metro Exodus for some reason
         
-        with db_session:
+        with pony.db_session:
 
             # Fetch new Steam data and update ping groups
             for db_user in entities.User.select(lambda db_user: db_user.steam_id):
@@ -141,17 +142,17 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
 
                         # Create new ping group
                         entities.PingGroup(name=game.name, steam_id=game.id)
-                        log.info(f'Created Ping Group `{game.name}` ({game.id})')
+                        log.info(f'Created ping group `{game.name}` ({game.id})')
                         new += 1
 
                 if summary and new:
-                    summary.set_field('New Ping Groups', f'Created {new} new Ping Group(s). For specifics, consult the logs.')
+                    summary.set_field('New ping groups', f'Created {new} new ping group(s). For specifics, consult the logs.')
 
     async def find_pinggroup(self, query: str, dialog: util.Dialog, summary: util.Summary) -> int | None:
 
         # Search ping groups
-        with db_session:
-            options = select(pg.name for pg in entities.PingGroup)
+        with pony.db_session:
+            options = pony.select(pg.name for pg in entities.PingGroup)
             conclusive, results = util.fuzzy_search(options, query)
 
             if not results:
@@ -161,7 +162,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
 
             # Results were conclusive
             if conclusive:
-                log.debug(f'Search results were conclusive, found Ping group `{pingGroup.name}`')
+                log.debug(f'Search results were conclusive, found ping group `{pingGroup.name}`')
                 pingGroup = entities.PingGroup.get(name=results[0]['name'])
                 return pingGroup.id
 
@@ -169,13 +170,13 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             else:
                 log.debug(f'Search results were inconclusive')
                 view = VaguePingGroup(dialog.ctx.author, [result['name'] for result in results[:min(5, len(results))]])
-                await dialog.set('Search results were inconclusive! Did you mean any of these Ping groups?', view=view)
+                await dialog.set('Search results were inconclusive! Did you mean any of these ping groups?', view=view)
                 result = await view.await_resolution()
 
                 # Parse result
                 if not result:
-                    log.warning(f'User `{dialog.ctx.author.name}` ({dialog.ctx.author.id}) aborted Ping command.')
-                    summary.set_header('Ping command was aborted')
+                    log.warning(f'User `{dialog.ctx.author.name}` ({dialog.ctx.author.id}) aborted ping command.')
+                    summary.set_header('ping command was aborted')
                     return
 
                 pingGroup = entities.PingGroup.get(name=result)
@@ -212,7 +213,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             await dialog.cleanup()
             return summary
         
-        with db_session:
+        with pony.db_session:
 
             # Find explicit subscribers
             pingGroup = entities.PingGroup.get(id=result)
@@ -241,7 +242,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             await dialog.add(message, view=None, mention_author=False)
 
         summary.send_on_return = False
-        summary.set_header('Successfully sent out Ping')
+        summary.set_header('Successfully sent out ping')
         summary.set_field('Subscribers', '\n'.join([user.name for user in discord_users]))
         await dialog.cleanup()
         return summary
@@ -277,7 +278,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
 
         # Link Steam account
-        with db_session:
+        with pony.db_session:
             db_user = entities.User.get(discord_id=ctx.author.id)
 
             # Check if there already is a SteamID registered to this user
@@ -293,7 +294,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 if not view.result:
                     log.info(f'User `{ctx.author.name}` ({ctx.author.id}) aborted ping setup')
                     summary.set_field('Subscriptions', 'No subscriptions added.')
-                    summary.set_header('User aborted Ping setup')
+                    summary.set_header('User aborted ping setup')
                     await dialog.cleanup()
                     return summary
                 
@@ -307,54 +308,11 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         if steam_user.private:
             summary.set_field('New Subscriptions', 'No subscriptions added, Steam profile is set to private. When you set your profile to public you will be automatically subscribed to all games in your library.')
         else:
-            summary.set_field('New Subscriptions', 'Steam library added to subscribed Ping Groups!')
+            summary.set_field('New Subscriptions', 'Steam library added to subscribed ping groups!')
         summary.set_header(f'Sucessfully linked Steam account `{steam_user.name}` to user `{ctx.author.name}`')
         log.info(f"Succesfully linked Steam account `{steam_user.name}` ({steam_user.id64}) to user `{ctx.author.name}` ({ctx.author.id})")
 
         await dialog.cleanup()            
-        return summary
-
-    @ping.command(name='add', description='Add a Ping group')
-    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
-    @util.summarized()
-    async def add(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
-        summary = util.Summary(ctx)
-        dialog = util.Dialog(ctx)
-
-        # Check params
-        if len(params) < 1:
-            log.error(f'No parameters given')
-            summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] -[flags]`')
-            await dialog.cleanup()
-            return summary
-        
-        # Update pings
-        if 'quiet' not in flags:
-            await dialog.set('DoSsing the Steam API...')
-        await self.update_pings(summary)
-
-        # Search ping groups
-        with db_session:
-            options = select(pg.name for pg in entities.PingGroup)
-            conclusive, results = util.fuzzy_search(options, ' '.join(params))
-
-            # If conclusive, there is another pinggroup with a conflicting name
-            if conclusive:
-                log.warn(f'Failed to create Ping group by name of `{" ".join(params)}` due to conflicting Ping group `{results[0]["name"]}`')
-                summary.set_header('Failed to create Ping group')
-                summary.set_field('ConflictingNameError', f'There already is a similar Ping group with the name `{results[0]["name"]}`. If your new Ping group targets a different audience, try giving it a different name. Stupid.')
-                await dialog.cleanup()
-                return summary
-
-            # Create new ping group
-            pingGroup = entities.PingGroup(name=' '.join(params))
-            commit()
-            pingGroup = entities.PingGroup.get(name=' '.join(params))
-            log.info(f'Created new ping group `{pingGroup.name}` ({pingGroup.id}) at the request of user `{ctx.author.name}` ({ctx.author.id})')
-    
-        summary.set_header(f'Successfully created Ping group `{pingGroup.name}`')
-        await dialog.cleanup()
         return summary
 
     @ping.command(name='subscribe', description='Subscribe to a ping group')
@@ -384,20 +342,20 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
         
         # Subscribe to ping group
-        with db_session:
+        with pony.db_session:
             db_user = entities.User.get(discord_id=ctx.author.id)
             pingGroup = entities.PingGroup.get(id=result)
 
             # Check if user is manually subscribed
             if pingGroup.id in db_user.whitelisted_pings:
-                log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to Ping group `{pingGroup.name}` ({pingGroup.id})')
+                log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{pingGroup.name}` ({pingGroup.id})')
                 return
 
             # Check if user is automatically subscribed
             if pingGroup.steam_id and db_user.steam_id:
                 steam_user = self.steam_client.getUser(db_user.steam_id)
                 if pingGroup.steam_id in [game.id for game in steam_user.games]:
-                    log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to Ping group `{pingGroup.name}` ({pingGroup.id})')
+                    log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{pingGroup.name}` ({pingGroup.id})')
                     return
 
             # Subscribe user to ping group
@@ -406,8 +364,8 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 db_user.blacklisted_pings.remove(pingGroup.id)
 
             # Cleanup
-            log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) subscribed to Ping group `{pingGroup.name}` ({pingGroup.id})')
-            summary.set_header(f'Succesfully subscribed to Ping group `{pingGroup.name}`')
+            log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) subscribed to ping group `{pingGroup.name}` ({pingGroup.id})')
+            summary.set_header(f'Succesfully subscribed to ping group `{pingGroup.name}`')
             await dialog.cleanup()
             return summary
 
@@ -438,7 +396,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
         
         # Subscribe to ping group
-        with db_session:
+        with pony.db_session:
             db_user = entities.User.get(discord_id=ctx.author.id)
             pingGroup = entities.PingGroup.get(id=result)
             unsubscribed = False
@@ -446,7 +404,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             # Check if user is manually subscribed
             if pingGroup.id in db_user.whitelisted_pings:
                 db_user.whitelisted_pings.remove(pingGroup.id)
-                log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) unsubscribed from Ping group `{pingGroup.name}` ({pingGroup.id})')
+                log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) unsubscribed from ping group `{pingGroup.name}` ({pingGroup.id})')
                 summary.header(f'User succesfully unsubscribed from `{pingGroup.name}`')
                 unsubscribed = True
 
@@ -455,15 +413,111 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 steam_user = self.steam_client.getUser(db_user.steam_id)
                 if pingGroup.steam_id in [game.id for game in steam_user.games]:
                     db_user.blacklisted_pings.append(pingGroup.id)
-                    log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) blacklisted Ping group `{pingGroup.name}` ({pingGroup.id})')
+                    log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) blacklisted ping group `{pingGroup.name}` ({pingGroup.id})')
                     summary.header(f'User succesfully blacklisted `{pingGroup.name}`')
                     unsubscribed = True
 
             # Check if user was subscribed in the first place
             if not unsubscribed:
-                log.warning(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) was never subscribed Ping group `{pingGroup.name}` ({pingGroup.id})')
+                log.warning(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) was never subscribed ping group `{pingGroup.name}` ({pingGroup.id})')
                 summary.header(f'User was never subscribed to `{pingGroup.name}`')                
             
             await dialog.cleanup()
             return summary
+
+    @ping.command(name='add', description='Add a ping group')
+    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
+    async def add(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
+
+        # Check params
+        if len(params) < 1:
+            log.error(f'No parameters given')
+            summary.set_header('No parameters given')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] -[flags]`')
+            await dialog.cleanup()
+            return summary
+        
+        # Update pings
+        if 'quiet' not in flags:
+            await dialog.set('DoSsing the Steam API...')
+        await self.update_pings(summary)
+
+        # Search ping groups
+        with pony.db_session:
+            options = pony.select(pg.name for pg in entities.PingGroup)
+            conclusive, results = util.fuzzy_search(options, ' '.join(params))
+
+            # If conclusive, there is another ping group with a conflicting name
+            if conclusive:
+                log.warn(f'Failed to create ping group by name of `{" ".join(params)}` due to conflicting ping group `{results[0]["name"]}`')
+                summary.set_header('Failed to create ping group')
+                summary.set_field('ConflictingNameError', f'There already is a similar ping group with the name `{results[0]["name"]}`. If your new ping group targets a different audience, try giving it a different name. Stupid.')
+                await dialog.cleanup()
+                return summary
+
+            # Create new ping group
+            pingGroup = entities.PingGroup(name=' '.join(params))
+            pony.commit()
+            pingGroup = entities.PingGroup.get(name=' '.join(params))
+            log.info(f'Created new ping group `{pingGroup.name}` ({pingGroup.id}) at the request of user `{ctx.author.name}` ({ctx.author.id})')
+    
+        summary.set_header(f'Successfully created ping group `{pingGroup.name}`')
+        await dialog.cleanup()
+        return summary
+    
+    @ping.command(name='delete', description='Delete a ping group')
+    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
+    @util.dev_only()
+    async def delete(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
+
+        # Check params
+        if len(params) < 1:
+            log.error(f'No parameters given')
+            summary.set_header('No parameters given')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] -[flags]`')
+            await dialog.cleanup()
+            return summary
+        
+        # Update pings
+        if 'quiet' not in flags:
+            await dialog.set('DoSsing the Steam API...')
+        await self.update_pings(summary)
+
+        # Find ping group
+        result = await self.find_pinggroup(' '.join(params), dialog, summary)
+        if not result:
+            await dialog.cleanup()
+            return summary
+    
+        # Check if ping group is implicit
+        if pingGroup.steam_id:
+            summary.set_header('Failed to delete Ping group')
+            summary.set_field('ImplicitPingGroupError', f'Ping group `{pingGroup.name}` is implicitly created from a Steam library, and thus cannot be deleted.')
+            log.warn(f'Ping group `{pingGroup.name}` is implicitly created from a Steam library, and thus cannot be deleted.')
+            
+            await dialog.cleanup()
+            return summary
+
+        # Delete ping group
+        with pony.db_session:
+            pingGroup = entities.PingGroup(name=result)
+
+            for db_user in pony.select(db_user for db_user in entities.User):
+                if pingGroup.id in db_user.whitelisted_pings:
+                    db_user.whitelisted_pings.remove(pingGroup.id)
+                if pingGroup.id in db_user.blacklisted_pings:
+                    db_user.blacklisted_pings.remove(pingGroup.id)
+
+            log.info(f'Successfully deleted ping group `{pingGroup.name}` ({pingGroup.id})')
+            summary.set_header(f'Successfully deleted ping group `{pingGroup.name}`')            
+            pingGroup.delete()
                 
+            await dialog.cleanup()
+            return summary
+    
