@@ -116,9 +116,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         self.bot = bot
         self.steam = steam.Client(getenv('STEAM_TOKEN'))
 
-    async def update_pings(self, summary: util.Summary | None = None) -> None:
-        # TODO fix the issue where it doesnt detect Metro Exodus for some reason
-        
+    async def update_pings(self, summary: util.Summary | None = None) -> None:        
         with pony.db_session:
 
             # Fetch new Steam data and update ping groups
@@ -141,9 +139,12 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                             continue
 
                         # Create new ping group
-                        entities.PingGroup(name=game.name, steam_id=game.id)
-                        log.info(f'Created ping group `{game.name}` ({game.id})')
-                        new += 1
+                        try:
+                            entities.PingGroup(name=game.name, steam_id=game.id)
+                            log.info(f'Created ping group `{game.name}` ({game.id})')
+                            new += 1
+                        except pony.core.CacheIndexError:
+                            log.warn(f'Failed to create ping group with duplicate name or SteamID')
 
                 if summary and new:
                     summary.set_field('New ping groups', f'Created {new} new ping group(s). For specifics, consult the logs.')
@@ -162,8 +163,8 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
 
             # Results were conclusive
             if conclusive:
-                log.debug(f'Search results were conclusive, found ping group `{pingGroup.name}`')
                 pingGroup = entities.PingGroup.get(name=results[0]['name'])
+                log.debug(f'Search results were conclusive, found ping group `{pingGroup.name}`')
                 return pingGroup.id
 
             # Results weren't conclusive, send VaguePingGroup menu
@@ -228,7 +229,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                             subscribers.append(db_user)
 
             # Build and send ping message
-            discord_users = [await self.bot.fetch_user(subscriber) for subscriber in subscribers]
+            discord_users = [await self.bot.fetch_user(subscriber.discord_id) for subscriber in subscribers]
             message = choice([
                 f'Hear ye, hear ye! Thou art did request to attend the court of {pingGroup.name}.\n',
                 f'Get in loser, we\'re going to do some {pingGroup.name}.\n',
@@ -494,20 +495,20 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         if not result:
             await dialog.cleanup()
             return summary
-    
-        # Check if ping group is implicit
-        if pingGroup.steam_id:
-            summary.set_header('Failed to delete Ping group')
-            summary.set_field('ImplicitPingGroupError', f'Ping group `{pingGroup.name}` is implicitly created from a Steam library, and thus cannot be deleted.')
-            log.warn(f'Ping group `{pingGroup.name}` is implicitly created from a Steam library, and thus cannot be deleted.')
-            
-            await dialog.cleanup()
-            return summary
 
-        # Delete ping group
         with pony.db_session:
-            pingGroup = entities.PingGroup(name=result)
+            pingGroup = entities.PingGroup.get(id=result)
 
+            # Check if ping group is implicit
+            if pingGroup.steam_id:
+                summary.set_header('Failed to delete implicit ping group')
+                summary.set_field('ImplicitPingGroupError', f'Ping group `{pingGroup.name}` is implicitly created from a Steam library, and thus cannot be deleted.')
+                log.warn(f'Ping group `{pingGroup.name}` is implicitly created from a Steam library, and thus cannot be deleted.')
+
+                await dialog.cleanup()
+                return summary
+
+            # Delete ping group
             for db_user in pony.select(db_user for db_user in entities.User):
                 if pingGroup.id in db_user.whitelisted_pings:
                     db_user.whitelisted_pings.remove(pingGroup.id)
@@ -520,4 +521,3 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 
             await dialog.cleanup()
             return summary
-    
