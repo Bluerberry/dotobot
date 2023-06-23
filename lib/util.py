@@ -130,6 +130,15 @@ def summarized():
         async def wrapped(self, ctx, *args, **kwargs):
             summary = await func(self, ctx, *args, **kwargs)
             history.add(summary)
+
+            # Give summary
+            if hasattr(func, 'default_command'):
+                if summary.send_on_return and 'quiet' not in args[0]:
+                    if 'verbose' in args[0]:
+                        await ctx.reply(embed=summary.make_embed())
+                    else:
+                        await ctx.reply(summary.header)
+
             return summary
         
         wrapped.summarized = True
@@ -167,7 +176,7 @@ def default_command(thesaurus: dict[str, str] = {}):
             if hasattr(func, 'summarized'):
                 if return_value.send_on_return and 'quiet' not in flags:
                     if 'verbose' in flags:
-                        await ctx.reply(embed=return_value.makeEmbed())
+                        await ctx.reply(embed=return_value.make_embed())
                     else:
                         await ctx.reply(return_value.header)
 
