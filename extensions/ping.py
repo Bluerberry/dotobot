@@ -189,17 +189,17 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
 
 
     @commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
-    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     async def ping(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
         # Check params
-        if len(params) < 1:
-            log.error(f'No parameters given')
-            summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping [query] -[flags]`')
+        if not params:
+            summary.set_header('Bad parameters Given')
+            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$ping [ping group] -[flags]`')
+            log.warn(f'Bad parameters given')
             await dialog.cleanup()
             return summary
 
@@ -209,7 +209,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         await self.update_pings(summary)
 
         # Find ping group
-        result = await self.find_pinggroup(' '.join(params), dialog, summary)
+        result = await self.find_pinggroup(params[0], dialog, summary)
         if not result:
             await dialog.cleanup()
             return summary
@@ -249,19 +249,18 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
 
     @ping.command(name='setup', description='Ping setup')
-    @util.default_command(thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'^[\d]+$', thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     async def setup(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
         # Check params
-        if len(params) != 1:
-            await dialog.cleanup()
+        if not params:
             summary.set_header('Bad parameters Given')
-            summary.set_field('ValueError', f'User provided the following parameters:\n\t`{" ".join(params)}`\n\nWhile command usage dictates `$ping setup [SteamID] -[flags]`')
-            log.warn(f'Bad parameters given: `{" ".join(params)}`')
-
+            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$ping setup [Steam ID64] -[flags]`')
+            log.warn(f'Bad parameters given')
+            await dialog.cleanup()
             return summary
 
         # Validate SteamID
@@ -271,11 +270,10 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             steam_user = self.steam.getUser(id64=params[0])
 
         except steam.errors.UserNotFound:
-            await dialog.cleanup()
             summary.set_header('Invalid SteamID')
             summary.set_field('ValueError', f'SteamID `{params[0]}` could not be found. Make sure you provide your Steam ID64, found in your profile url.')
             log.warn(f'Invalid SteamID: `{params[0]}`')
-
+            await dialog.cleanup()
             return summary
 
         # Link Steam account
@@ -317,17 +315,17 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
 
     @ping.command(name='subscribe', description='Subscribe to a ping group')
-    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     async def subscribe(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
         # Check params
-        if len(params) < 1:
+        if not params:
             log.error(f'No parameters given')
             summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [query] -[flags]`')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [ping group] -[flags]`')
             await dialog.cleanup()
             return summary
 
@@ -337,7 +335,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         await self.update_pings(summary)
 
         # Find ping group
-        result = await self.find_pinggroup(' '.join(params), dialog, summary)
+        result = await self.find_pinggroup(params[0], dialog, summary)
         if not result:
             await dialog.cleanup()
             return summary
@@ -371,14 +369,14 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
 
     @ping.command(name='unsubscribe', description='Unsubscribe from a ping group')
-    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     async def unsubscribe(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
         # Check params
-        if len(params) < 1:
+        if not params:
             log.error(f'No parameters given')
             summary.set_header('No parameters given')
             summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [query] -[flags]`')
@@ -391,7 +389,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         await self.update_pings(summary)
 
         # Find ping group
-        result = await self.find_pinggroup(' '.join(params), dialog, summary)
+        result = await self.find_pinggroup(params[0], dialog, summary)
         if not result:
             await dialog.cleanup()
             return summary
@@ -427,14 +425,14 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
 
     @ping.command(name='add', description='Add a ping group')
-    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     async def add(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
         # Check params
-        if len(params) < 1:
+        if not params:
             log.error(f'No parameters given')
             summary.set_header('No parameters given')
             summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] -[flags]`')
@@ -449,20 +447,19 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         # Search ping groups
         with pony.db_session:
             options = pony.select(pg.name for pg in entities.PingGroup)
-            conclusive, results = util.fuzzy_search(options, ' '.join(params))
+            conclusive, results = util.fuzzy_search(options, params[0])
 
             # If conclusive, there is another ping group with a conflicting name
             if conclusive:
-                log.warn(f'Failed to create ping group by name of `{" ".join(params)}` due to conflicting ping group `{results[0]["name"]}`')
+                log.warn(f'Failed to create ping group by name of `{params[0]}` due to conflicting ping group `{results[0]["name"]}`')
                 summary.set_header('Failed to create ping group')
                 summary.set_field('ConflictingNameError', f'There already is a similar ping group with the name `{results[0]["name"]}`. If your new ping group targets a different audience, try giving it a different name. Stupid.')
                 await dialog.cleanup()
                 return summary
 
             # Create new ping group
-            pingGroup = entities.PingGroup(name=' '.join(params))
+            pingGroup = entities.PingGroup(name=params[0])
             pony.commit()
-            pingGroup = entities.PingGroup.get(name=' '.join(params))
             log.info(f'Created new ping group `{pingGroup.name}` ({pingGroup.id}) at the request of user `{ctx.author.name}` ({ctx.author.id})')
     
         summary.set_header(f'Successfully created ping group `{pingGroup.name}`')
@@ -470,7 +467,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
     
     @ping.command(name='delete', description='Delete a ping group')
-    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     @util.dev_only()
     async def delete(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
@@ -478,7 +475,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         dialog = util.Dialog(ctx)
 
         # Check params
-        if len(params) < 1:
+        if not params:
             log.error(f'No parameters given')
             summary.set_header('No parameters given')
             summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] -[flags]`')
@@ -491,7 +488,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         await self.update_pings(summary)
 
         # Find ping group
-        result = await self.find_pinggroup(' '.join(params), dialog, summary)
+        result = await self.find_pinggroup(params[0], dialog, summary)
         if not result:
             await dialog.cleanup()
             return summary

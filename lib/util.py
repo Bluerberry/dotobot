@@ -21,7 +21,6 @@ FUZZY_DISTANCE_MARGIN = 3
 dotenv.load_dotenv()
 
 
-
 # ---------------------> Classes
 
 
@@ -111,14 +110,50 @@ history = History()
 # ---------------------> Wrappers
 
 
-# Wraps around commands to make it dev only
-#   - outgoing func signature does not change
+# Wraps around commands to split args into flags and params.
+#   - incoming func MUST follow async (self, ctx, flags, params) -> Any
+#   - outgoing func follows async (self, ctx, *args, **kwargs) -> Any
 #   - decorator should be placed below @bot.command() decorator
 
-def dev_only():
-    def predicate(ctx):
-        return str(ctx.author.id) in getenv('DEVELOPER_IDS')    
-    return commands.check(predicate)
+def default_command(param_filter: str | None = None, thesaurus: dict[str, str] = {}):
+    def wrapper(func):
+        async def wrapped(self, ctx, *args, **_):
+            flags  = []
+            params = []
+
+            for arg in args:
+
+                # Parse flags
+                if arg.startswith('-'):
+                    flag = arg[1:]
+                    if flag in thesaurus.keys():
+                        flag = thesaurus[flag]
+                    flags.append(flag)
+
+                # Parse params
+                else:
+                    params.append(arg)
+            
+            # Filter params
+            if param_filter:
+                params = regex.findall(param_filter, ' '.join(params))
+
+            # Call function
+            return_value = await func(self, ctx, flags, params)
+
+            # Give summary
+            if hasattr(func, 'summarized'):
+                if return_value.send_on_return and 'quiet' not in flags:
+                    if 'verbose' in flags:
+                        await ctx.reply(embed=return_value.make_embed())
+                    else:
+                        await ctx.reply(return_value.header)
+
+            return return_value
+        
+        wrapped.default_command = True
+        return wrapped
+    return wrapper
 
 # Wraps around commands to add summary to history
 #   - incoming func MUST return Summary
@@ -145,46 +180,14 @@ def summarized():
         return wrapped
     return wrapper
 
-# Wraps around commands to split args into flags and params.
-#   - incoming func MUST follow async (self, ctx, flags, params) -> Any
-#   - outgoing func follows async (self, ctx, *args, **kwargs) -> Any
+# Wraps around commands to make it dev only
+#   - outgoing func signature does not change
 #   - decorator should be placed below @bot.command() decorator
 
-def default_command(thesaurus: dict[str, str] = {}):
-    def wrapper(func):
-        async def wrapped(self, ctx, *args, **_):
-            flags  = []
-            params = []
-
-            for arg in args:
-
-                # Parse flags
-                if arg.startswith('-'):
-                    flag = arg[1:]
-                    if flag in thesaurus.keys():
-                        flag = thesaurus[flag]
-                    flags.append(flag)
-
-                # Parse params
-                else:
-                    params.append(arg)
-
-            # Call function
-            return_value = await func(self, ctx, flags, params)
-
-            # Give summary
-            if hasattr(func, 'summarized'):
-                if return_value.send_on_return and 'quiet' not in flags:
-                    if 'verbose' in flags:
-                        await ctx.reply(embed=return_value.make_embed())
-                    else:
-                        await ctx.reply(return_value.header)
-
-            return return_value
-        
-        wrapped.default_command = True
-        return wrapped
-    return wrapper
+def dev_only():
+    def predicate(ctx):
+        return str(ctx.author.id) in getenv('DEVELOPER_IDS')    
+    return commands.check(predicate)
 
 
 # ---------------------> Utility Functions
