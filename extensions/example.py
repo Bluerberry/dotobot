@@ -6,7 +6,7 @@ from discord.ext import commands
 
 # ---------------------> Logging setup
 
-name = basename(__file__)[:-2]
+name = basename(__file__)[:-3]
 log = logging.getLogger(name)
 
 # ---------------------> Example cog
@@ -23,7 +23,4 @@ def teardown(bot: commands.Bot) -> None:
 class Example(commands.Cog, name = name, description = 'An example extension'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-    
-    @commands.command()
-    async def ping(self, ctx) -> None:
-        await ctx.channel.send('Pong!')
+
