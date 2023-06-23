@@ -30,142 +30,6 @@ load_dotenv()
 
 # ---------------------> UI components
 
-# TODO delete this code
-
-"""
-
-class SubscribeButton(discord.ui.Button):
-    def __init__(self, steam_client: steam.Client, ctx: commands.Context, id: int,  *args, **kwargs) -> None:
-        super().__init__(style=discord.ButtonStyle.green, label='Subscribe', emoji='📬' *args, **kwargs)
-        self.steam_client = steam_client
-        self.ctx = ctx
-        self.id = id
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-
-        # Only the original command author can interact with this button
-        if interaction.user != self.ctx.author:
-            return
-        await interaction.response.defer()
-
-        with db_session:
-            db_user = entities.User.get(discord_id=self.ctx.author.id)
-            db_pingGroup = entities.PingGroup.get(id=self.id)
-
-            # Check if user is manually subscribed
-            if db_pingGroup.id in db_user.whitelisted_pings:
-                log.warning(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) already subscribed to Ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-                return
-
-            # Check if user is automatically subscribed
-            if db_pingGroup.steam_id and db_user.steam_id:
-                steam_user = self.steam_client.getUser(db_user.steam_id)
-                if db_pingGroup.steam_id in [game.id for game in steam_user.games]:
-                    log.warning(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) already subscribed to Ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-                    return
-
-            # Subscribe user to ping group
-            db_user.blacklisted_pings.append(db_pingGroup.id)
-            if db_pingGroup.id in db_user.blacklisted_pings:
-                db_user.blacklisted_pings.remove(db_pingGroup.id)
-            log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) subscribed to Ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-
-class UnsubscribeButton(discord.ui.Button):
-    def __init__(self, steam_client: steam.Client, ctx: commands.Context, id: int, *args, **kwargs) -> None:
-        super().__init__(style=discord.ButtonStyle.red, label='Unsubscribe', emoji='📪', *args, **kwargs)
-        self.steam_client = steam_client
-        self.ctx = ctx
-        self.id = id
-
-
-    async def callback(self, interaction: discord.Interaction):
-
-        # Only the original command author can interact with this button
-        if interaction.user != self.ctx.author:
-            return
-        await interaction.response.defer()
-
-        with db_session:
-            db_user = entities.User.get(discord_id=self.ctx.author.id)
-            db_pingGroup = entities.PingGroup.get(id=self.id)
-            unsubscribed = False
-
-            # Check if user is manually subscribed
-            if db_pingGroup.id in db_user.whitelisted_pings:
-                db_user.whitelisted_pings.remove(db_pingGroup.id)
-                log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) unsubscribed from Ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-                unsubscribed = True
-
-            # Check if user is automatically subscribed
-            if db_pingGroup.steam_id and db_user.steam_id:
-                steam_user = self.steam_client.getUser(db_user.steam_id)
-                if db_pingGroup.steam_id in [game.id for game in steam_user.games]:
-                    db_user.blacklisted_pings.append(db_pingGroup.id)
-                    log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) blacklisted Ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-                    unsubscribed = True
-
-            # Check if user was subscribed in the first place
-            if unsubscribed:
-                log.warning(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) was never subscribed Ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-
-class PingGroupMenu(discord.ui.View):
-    def __init__(self, steam_client: steam.Client, ctx: commands.Context, id: int, subscribers: list[int], summary: util.Summary | None, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.resolved = asyncio.Event()
-        self.subscribers = subscribers
-        self.summary = summary
-        self.ctx = ctx
-        self.id = id
-
-        # Add (un)subscribe button
-        if ctx.author.id in subscribers:
-            self.add_item(UnsubscribeButton(steam_client, ctx, id))
-        else:
-            self.add_item(SubscribeButton(steam_client, ctx, id))
-        self.children[1], self.children[2] = self.children[2], self.children[1]
-    
-    # Blocks until any button has been pressed, then disables all items
-    async def await_resolution(self) -> None:
-        await self.resolved.wait()
-        self.disable_all_items()
-
-    # Override Steam account
-    @discord.ui.button(label='Ping', style=discord.ButtonStyle.blurple, emoji='📨')
-    async def ping(self, _, interaction: discord.Interaction) -> None:
-
-        # Only the original command author can interact with this view
-        if interaction.user != self.ctx.author:
-            return
-        await interaction.response.defer()
-
-        # Build message
-        with db_session:
-            pingGroup = entities.PingGroup.get(id=self.id)
-            discord_users = [await self.ctx.bot.fetch_user(subscriber) for subscriber in self.subscribers]
-
-            message = choice([
-                f'Hear ye, hear ye! Thou art did request to attend the court of {pingGroup.name}.\n',
-                f'Get in loser, we\'re going to do some {pingGroup.name}.\n',
-                f'The definition of insanity is launching {pingGroup.name} and expecting success. Let\'s go insane.\n',
-                f'Whats more important, working on your future or joining {pingGroup.name}? Exactly.\n',
-                f'The ping extention wasted weeks of my life, so thank you for using it. Lets play {pingGroup.name}!\n',
-                f'Vamos a la {pingGroup.name}, oh ohhhhhhhh yeah!\n',
-                f'Inspiratie is voor de inspiratielozen. Something something {pingGroup.name}.\n'
-            ]) + ' '.join([user.mention for user in discord_users])
-
-        await self.ctx.reply(message)
-    
-    # Close menu
-    @discord.ui.button(label='Exit', style=discord.ButtonStyle.gray, emoji='❌')
-    async def exit(self, _, interaction: discord.Interaction) -> None:
-
-        # Only the original command author can interact with this view
-        if interaction.user != self.ctx.author:
-            return
-        await interaction.response.defer()
-        self.resolved.set()
-
-"""
 
 class SelectPingGroup(discord.ui.Select):
     def __init__(self, parent: discord.ui.View, options: list[str], *args, **kwargs) -> None:
@@ -251,25 +115,6 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         self.bot = bot
         self.steam = steam.Client(getenv('STEAM_TOKEN'))
 
-    def find_subscribers(self, ping_id: int) -> list[int]:
-        # TODO maybe move find_subscribers inside ping command. currently thats the only reference
-       
-        with db_session:
-
-            # Find explicit subscribers
-            pingGroup = entities.PingGroup.get(id=ping_id)
-            subscribers = list(select(db_user.discord_id for db_user in entities.User if pingGroup.id in db_user.whitelisted_pings))
-
-            # Find implicit subscribers
-            if pingGroup.steam_id:
-                for db_user in entities.User.select(lambda db_user: db_user.steam_id):
-                    if pingGroup.id not in db_user.blacklisted_pings and db_user.discord_id not in subscribers:
-                        steam_user = self.steam.getUser(db_user.steam_id)
-                        if pingGroup.steam_id in [game.id for game in steam_user.games]:
-                            subscribers.append(db_user.discord_id)
-
-        return subscribers
-
     async def update_pings(self, summary: util.Summary | None = None) -> None:
         # TODO fix the issue where it doesnt detect Metro Exodus for some reason
         
@@ -302,6 +147,41 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 if summary and new:
                     summary.set_field('New Ping Groups', f'Created {new} new Ping Group(s). For specifics, consult the logs.')
 
+    async def find_pinggroup(self, query: str, dialog: util.Dialog, summary: util.Summary) -> int | None:
+
+        # Search ping groups
+        with db_session:
+            options = select(pg.name for pg in entities.PingGroup)
+            conclusive, results = util.fuzzy_search(options, query)
+
+            if not results:
+                log.error('No ping groups were found, search returned nothing')
+                summary.set_header('No ping groups found')
+                return
+
+            # Results were conclusive
+            if conclusive:
+                log.debug(f'Search results were conclusive, found Ping group `{pingGroup.name}`')
+                pingGroup = entities.PingGroup.get(name=results[0]['name'])
+                return pingGroup.id
+
+            # Results weren't conclusive, send VaguePingGroup menu
+            else:
+                log.debug(f'Search results were inconclusive')
+                view = VaguePingGroup(dialog.ctx.author, [result['name'] for result in results[:min(5, len(results))]])
+                await dialog.set('Search results were inconclusive! Did you mean any of these Ping groups?', view=view)
+                result = await view.await_resolution()
+
+                # Parse result
+                if not result:
+                    log.warning(f'User `{dialog.ctx.author.name}` ({dialog.ctx.author.id}) aborted Ping command.')
+                    summary.set_header('Ping command was aborted')
+                    return
+
+                pingGroup = entities.PingGroup.get(name=result)
+                log.debug(f'User chose `{pingGroup.name} from inconclusive search results')
+                return pingGroup.id
+
 
     # ---------------------> Commands
 
@@ -321,47 +201,32 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             await dialog.cleanup()
             return summary
 
-        # Update pings
+        # Update ping groups
         if 'quiet' not in flags:
             await dialog.set('DoSsing the Steam API...')
         await self.update_pings(summary)
 
-        # Search ping groups
+        # Find ping group
+        result = await self.find_pinggroup(' '.join(params), dialog, summary)
+        if not result:
+            await dialog.cleanup()
+            return summary
+        
         with db_session:
-            options = select(pg.name for pg in entities.PingGroup)
-            conclusive, results = util.fuzzy_search(options, ' '.join(params))
 
-            if not results:
-                log.warning('No ping groups found')
-                summary.set_header('No ping groups found')
-                await dialog.cleanup()
-                return summary
+            # Find explicit subscribers
+            pingGroup = entities.PingGroup.get(id=result)
+            subscribers = list(entities.User.select(lambda db_user: pingGroup.id in db_user.whitelisted_pings))
 
-
-            # Results were conclusive
-            if conclusive:
-                pingGroup = entities.PingGroup.get(name=results[0]['name'])
-                log.debug(f'Search results were conclusive, found Ping group `{pingGroup.name}`')
-
-            # Results weren't conclusive, send VaguePingGroup menu
-            else:
-                log.debug(f'Search results were inconclusive')
-                view = VaguePingGroup(ctx.author, [result['name'] for result in results[:min(5, len(results))]])
-                await dialog.set('Search results were inconclusive! Did you mean any of these Ping groups?', view=view)
-                result = await view.await_resolution()
-
-                # Parse result
-                if not result:
-                    log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) aborted Ping command.')
-                    summary.set_header('Ping command was aborted')
-                    await dialog.cleanup()
-                    return summary
-
-                pingGroup = entities.PingGroup.get(name=result)
-                log.debug(f'User chose `{pingGroup.name} from inconclusive search results')
+            # Find implicit subscribers
+            if pingGroup.steam_id:
+                for db_user in entities.User.select(lambda db_user: db_user.steam_id):
+                    if pingGroup.id not in db_user.blacklisted_pings and db_user.discord_id not in subscribers:
+                        steam_user = self.steam.getUser(db_user.steam_id)
+                        if pingGroup.steam_id in [game.id for game in steam_user.games]:
+                            subscribers.append(db_user)
 
             # Build and send ping message
-            subscribers = self.find_subscribers(pingGroup.id)
             discord_users = [await self.bot.fetch_user(subscriber) for subscriber in subscribers]
             message = choice([
                 f'Hear ye, hear ye! Thou art did request to attend the court of {pingGroup.name}.\n',
@@ -432,27 +297,20 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                     await dialog.cleanup()
                     return summary
                 
-                await dialog.set('DoSsing the Steam API...', view=None)
-                 
-            # Update log and summary
-            if db_user.steam_id:
-                summary.set_header(f'Sucessfully overrode Steam account to `{steam_user.name}` for user `{ctx.author.name}`')
-                log.info(f'Succesfully overrode Steam account to `{steam_user.name}` ({steam_user.id64}) for user `{ctx.author.name}` ({ctx.author.id})')
-            
-            else:
-                summary.set_header(f'Sucessfully linked Steam account `{steam_user.name}` to user `{ctx.author.name}`')
-                log.info(f"Succesfully linked Steam account `{steam_user.name}` ({steam_user.id64}) to user `{ctx.author.name}` ({ctx.author.id})")
-
-            if steam_user.private:
-                summary.set_field('New Subscriptions', 'No subscriptions added, Steam profile is set to private. When you set your profile to public you will be automatically subscribed to all games in your library.')
-            
-            else:
-                summary.set_field('New Subscriptions', 'Steam library added to subscribed Ping Groups!')
-
             # Link Steam account
             db_user.steam_id = steam_user.id64
+            if 'quiet' not in flags:
+                await dialog.set('DoSsing the Steam API...', view=None)
+            await self.update_pings(summary)
 
-        await self.update_pings(summary)
+        # Update log and summary
+        if steam_user.private:
+            summary.set_field('New Subscriptions', 'No subscriptions added, Steam profile is set to private. When you set your profile to public you will be automatically subscribed to all games in your library.')
+        else:
+            summary.set_field('New Subscriptions', 'Steam library added to subscribed Ping Groups!')
+        summary.set_header(f'Sucessfully linked Steam account `{steam_user.name}` to user `{ctx.author.name}`')
+        log.info(f"Succesfully linked Steam account `{steam_user.name}` ({steam_user.id64}) to user `{ctx.author.name}` ({ctx.author.id})")
+
         await dialog.cleanup()            
         return summary
 
@@ -499,4 +357,113 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         await dialog.cleanup()
         return summary
 
-    @ping.command(name='subscribe', description='Subscribe to a Ping group')
+    @ping.command(name='subscribe', description='Subscribe to a ping group')
+    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
+    async def subscribe(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
+
+        # Check params
+        if len(params) < 1:
+            log.error(f'No parameters given')
+            summary.set_header('No parameters given')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [query] -[flags]`')
+            await dialog.cleanup()
+            return summary
+
+        # Update ping groups
+        if 'quiet' not in flags:
+            await dialog.set('DoSsing the Steam API...')
+        await self.update_pings(summary)
+
+        # Find ping group
+        result = await self.find_pinggroup(' '.join(params), dialog, summary)
+        if not result:
+            await dialog.cleanup()
+            return summary
+        
+        # Subscribe to ping group
+        with db_session:
+            db_user = entities.User.get(discord_id=ctx.author.id)
+            pingGroup = entities.PingGroup.get(id=result)
+
+            # Check if user is manually subscribed
+            if pingGroup.id in db_user.whitelisted_pings:
+                log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to Ping group `{pingGroup.name}` ({pingGroup.id})')
+                return
+
+            # Check if user is automatically subscribed
+            if pingGroup.steam_id and db_user.steam_id:
+                steam_user = self.steam_client.getUser(db_user.steam_id)
+                if pingGroup.steam_id in [game.id for game in steam_user.games]:
+                    log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to Ping group `{pingGroup.name}` ({pingGroup.id})')
+                    return
+
+            # Subscribe user to ping group
+            db_user.whitelisted_pings.append(pingGroup.id)
+            if pingGroup.id in db_user.blacklisted_pings:
+                db_user.blacklisted_pings.remove(pingGroup.id)
+
+            # Cleanup
+            log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) subscribed to Ping group `{pingGroup.name}` ({pingGroup.id})')
+            summary.set_header(f'Succesfully subscribed to Ping group `{pingGroup.name}`')
+            await dialog.cleanup()
+            return summary
+
+    @ping.command(name='unsubscribe', description='Unsubscribe from a ping group')
+    @util.default_command(thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
+    async def unsubscribe(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
+
+        # Check params
+        if len(params) < 1:
+            log.error(f'No parameters given')
+            summary.set_header('No parameters given')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [query] -[flags]`')
+            await dialog.cleanup()
+            return summary
+
+        # Update ping groups
+        if 'quiet' not in flags:
+            await dialog.set('DoSsing the Steam API...')
+        await self.update_pings(summary)
+
+        # Find ping group
+        result = await self.find_pinggroup(' '.join(params), dialog, summary)
+        if not result:
+            await dialog.cleanup()
+            return summary
+        
+        # Subscribe to ping group
+        with db_session:
+            db_user = entities.User.get(discord_id=ctx.author.id)
+            pingGroup = entities.PingGroup.get(id=result)
+            unsubscribed = False
+
+            # Check if user is manually subscribed
+            if pingGroup.id in db_user.whitelisted_pings:
+                db_user.whitelisted_pings.remove(pingGroup.id)
+                log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) unsubscribed from Ping group `{pingGroup.name}` ({pingGroup.id})')
+                summary.header(f'User succesfully unsubscribed from `{pingGroup.name}`')
+                unsubscribed = True
+
+            # Check if user is automatically subscribed
+            if pingGroup.steam_id and db_user.steam_id:
+                steam_user = self.steam_client.getUser(db_user.steam_id)
+                if pingGroup.steam_id in [game.id for game in steam_user.games]:
+                    db_user.blacklisted_pings.append(pingGroup.id)
+                    log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) blacklisted Ping group `{pingGroup.name}` ({pingGroup.id})')
+                    summary.header(f'User succesfully blacklisted `{pingGroup.name}`')
+                    unsubscribed = True
+
+            # Check if user was subscribed in the first place
+            if not unsubscribed:
+                log.warning(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) was never subscribed Ping group `{pingGroup.name}` ({pingGroup.id})')
+                summary.header(f'User was never subscribed to `{pingGroup.name}`')                
+            
+            await dialog.cleanup()
+            return summary
+                
