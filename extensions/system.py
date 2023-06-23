@@ -7,7 +7,7 @@ import discord
 from discord import ExtensionAlreadyLoaded, ExtensionNotFound, ExtensionNotLoaded
 from discord.ext import commands
 
-import util
+import lib.util as util
 
 
 # ---------------------> Logging setup

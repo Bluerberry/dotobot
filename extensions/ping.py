@@ -10,9 +10,9 @@ import discord
 from discord.ext import commands
 import pony.orm as pony
 
-import steam
-import util
-import entities
+import lib.entities as entities
+import lib.steam as steam
+import lib.util as util
 
 
 # ---------------------> Logging setup
