@@ -50,6 +50,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
+
+    # ---------------------> Commands
+
+
     @commands.command(name='summary', description='Provides summary of previous command, or reference command.')
     @util.default_command()
     async def summary(self, ctx: commands.Context, *_) -> None:
