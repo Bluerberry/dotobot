@@ -88,10 +88,21 @@ async def on_member_join(member: discord.User) -> None:
 if __name__ == '__main__':
 
     # Load all extensions
-    for ext in util.yield_extensions(prefix_path=True):
-        try:
-            bot.load_extension(ext)
-        except Exception as err:
-            log.error(err)
+    with pony.db_session:
+        for ext in util.yield_extensions(prefix_path=True):
+            try:
+
+                # Skip extensions marked inactive
+                name = util.extension_name(ext)
+                if entities.Extension.exists(name=name):
+                    extension = entities.Extension.get(name=name)
+                    if not extension.active:
+                        log.warning(f'Skipped loading inactive extension `{name}`')
+                        continue
+
+                bot.load_extension(ext)
+
+            except Exception as err:
+                log.error(err)
     
     bot.run(getenv('DISCORD_TOKEN'))

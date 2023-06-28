@@ -6,8 +6,10 @@ import dotenv
 import discord
 from discord import ExtensionAlreadyLoaded, ExtensionNotFound, ExtensionNotLoaded
 from discord.ext import commands
+import pony.orm as pony
 
 import lib.util as util
+import lib.entities as entities
 
 
 # ---------------------> Logging setup
@@ -27,19 +29,26 @@ dotenv.load_dotenv()
 
 
 def setup(bot: commands.Bot) -> None:
+    with pony.db_session:
+        if entities.Extension.exists(name=name):
+            extension = entities.Extension.get(name=name)
+            extension.active = True
+        else:
+            entities.Extension(name=name, active=True)
+
     bot.add_cog(System(bot))
     log.info(f'Extension has been created: {name}')
 
 def teardown(bot: commands.Bot) -> None:
+    with pony.db_session:
+        extension = entities.Extension.get(name=name)
+        extension.active = False
+    
     log.info(f'Extension has been destroyed: {name}')
 
 class System(commands.Cog, name=name, description='Controls internal functionality'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-
-
-    # ---------------------> Commands
-
 
     @commands.command(name='summary', description='Provides summary of previous command, or reference command.')
     @util.default_command()

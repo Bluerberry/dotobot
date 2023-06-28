@@ -1,18 +1,18 @@
 
 import asyncio
 import logging
+import random
 from os import getenv
 from os.path import basename
-from random import choice
 
 import dotenv
 import discord
 from discord.ext import commands
 import pony.orm as pony
 
-import lib.entities as entities
-import lib.steam as steam
 import lib.util as util
+import lib.steam as steam
+import lib.entities as entities
 
 
 # ---------------------> Logging setup
@@ -105,10 +105,21 @@ class VerifySteamOverride(discord.ui.View):
 
 
 def setup(bot: commands.Bot) -> None:
+    with pony.db_session:
+        if entities.Extension.exists(name=name):
+            extension = entities.Extension.get(name=name)
+            extension.active = True
+        else:
+            entities.Extension(name=name, active=True)
+
     bot.add_cog(Ping(bot))
     log.info(f'Extension has been created: {name}')
 
 def teardown(bot: commands.Bot) -> None:
+    with pony.db_session:
+        extension = entities.Extension.get(name=name)
+        extension.active = False
+    
     log.info(f'Extension has been destroyed: {name}')
 
 class Ping(commands.Cog, name = name, description = 'Better ping utility'):
@@ -230,7 +241,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
 
             # Build and send ping message
             discord_users = [await self.bot.fetch_user(subscriber.discord_id) for subscriber in subscribers]
-            message = choice([
+            message = random.choice([
                 f'Hear ye, hear ye! Thou art did request to attend the court of {pingGroup.name}.\n',
                 f'Get in loser, we\'re going to do some {pingGroup.name}.\n',
                 f'The definition of insanity is launching {pingGroup.name} and expecting success. Let\'s go insane.\n',
