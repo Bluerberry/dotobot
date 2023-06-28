@@ -1,213 +1,108 @@
+
+import json
 import logging
-from logging import config
+import logging.config
+from os import getenv
 
-from os import getenv, listdir
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# configure database
-from entities import db
-
-db.bind(provider='postgres', user=getenv('DB_USER'), password=getenv('DB_PASSWORD'),
-        host=getenv('DB_HOST'), port=getenv('DB_PORT'), database=getenv('DB_NAME'))
-db.generate_mapping(check_tables=True, create_tables=True)
-
-
-# Discord setup
+import dotenv
 import discord
 from discord.ext import commands
-from discord import ExtensionAlreadyLoaded, ExtensionNotLoaded, ExtensionNotFound
+import pony.orm as pony
+
+import lib.util as util
+import lib.entities as entities
+
 
 # ---------------------> Logging setup
 
-config.fileConfig('log.conf')
-log = logging.getLogger('root')
 
-# ---------------------> Bot setup
+log = logging.getLogger('root')
+with open('logConfig.json') as file:
+    logging.config.dictConfig(json.load(file))
+
+
+# ---------------------> Environment setup
+
+
+dotenv.load_dotenv()
+
+
+# ---------------------> Configure database
+
+
+entities.db.bind(provider='postgres', user=getenv('DB_USER'), password=getenv('DB_PASSWORD'),
+        host=getenv('DB_HOST'), port=getenv('DB_PORT'), database=getenv('DB_NAME'))
+entities.db.generate_mapping(check_tables=True, create_tables=True)
+
+
+# ---------------------> Discord setup
+
 
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix = '$', intents = intents)
+bot = commands.Bot(command_prefix='$', intents=intents)
 
 @bot.event
 async def on_ready() -> None:
+    
+    # Add all members from all guilds to database
+    with pony.db_session:
+        for guild in bot.guilds:
+            for member in guild.members:
+                if bot.application_id == member.id:
+                    continue
+
+                if entities.User.exists(discord_id=member.id):
+                    log.debug(f"New user `{member.name}` ({member.id}) already known")
+                    continue
+
+                entities.User(discord_id=member.id)
+                log.info(f'New user `{member.name}` ({member.id}) added to the database')
+    
     log.info(f'Succesful login as {bot.user}')
 
-@bot.command()
-async def load(ctx: commands.Context, *args) -> None:
-    
-    # Flags
-    all: bool = '--all' in args
-    silent: bool = '--silent' in args
-    verbose: bool = '--verbose' in args
+@bot.event
+async def on_member_join(member: discord.User) -> None:
 
-    # Preperations
-    total: int = 0
-    success: int = 0
-    summary: str = ''
+    # Find greet channel
+    channel = bot.get_channel(int(getenv('GREET_CHANNEL_ID')))
+    if channel == None:
+        log.error(f'Failed to load greet channel ({getenv("GREET_CHANNEL_ID")})')
+        return
 
-    if not args or all:
-        args = ['extensions.' + file[:-3] for file in listdir('./extensions') if file.endswith('.py')]
-    else:
-        args = ['extensions.' + arg for arg in args if not arg.startswith('--')]
-
-    # Load extensions
-    for arg in args:
-
-        try:
-            bot.load_extension(arg)
-            summary += f'🟢 {arg} sucessfully loaded\n'
-
-        except ExtensionAlreadyLoaded as err:
-            log.warning(err)
-            summary += f'🟡 {arg} was already loaded\n'
-
-        except ExtensionNotFound as err:
-            log.warning(err)
-            summary += f'🟠 {arg} doesn\'t exist\n'
-
-        except Exception as err:
-            log.error(err)
-            summary += f'🔴 {arg} failed to load\n'
-        
-        else:
-            success += 1
-        finally:
-            total += 1
-    
-    # TODO Maybe use discord pages for a nicer interface
-    # Feedback
-    if not silent:
-        if total == 0:
-            await ctx.channel.send(f'No extensions have loaded')
+    # Check if new user is already known
+    with pony.db_session:
+        if entities.User.exists(discord_id=member.id):
+            log.debug(f"New user `{member.name}` ({member.id}) already known")
             return
-        if verbose:
-            await ctx.channel.send(f'```{summary}```')
-        if success == total:
-            await ctx.channel.send(f'All extensions have loaded')
-        else:
-            await ctx.channel.send(f'{success} out of {total} extensions have loaded')
-
-@bot.command()
-async def unload(ctx: commands.Context, *args) -> None:
-   
-    # Flags
-    all: bool = '--all' in args
-    silent: bool = '--silent' in args
-    verbose: bool = '--verbose' in args
-
-    # Preperations
-    total: int = 0
-    success: int = 0
-    summary: str = ''
-
-    if not args or all:
-        args = list(bot.extensions.keys())
-    else:
-        args = ['extensions.' + arg for arg in args if not arg.startswith('--')]
-
-    # Unload extensions
-    for arg in args:
-
-        try:
-            bot.unload_extension(arg)
-            summary += f'🟢 {arg} sucessfully unloaded\n'
-
-        except ExtensionNotLoaded as err:
-            log.warning(err)
-            summary += f'🟡 {arg} was already unloaded\n'
-
-        except ExtensionNotFound as err:
-            log.warning(err)
-            summary += f'🟠 {arg} doesn\'t exist\n'
-
-        except Exception as err:
-            log.error(err)
-            summary += f'🔴 {arg} failed to unload\n'
         
-        else:
-            success += 1
-        finally:
-            total += 1
+        entities.User(discord_id=member.id)
+        log.info(f'New user `{member.name}` ({member.id}) added to the database')
     
-    # TODO Maybe use discord pages for a nicer interface
-    # Feedback
-    if not silent:
-        if total == 0:
-            await ctx.channel.send(f'No extensions have unloaded')
-            return
-        if verbose:
-            await ctx.channel.send(f'```{summary}```')
-        if success == total:
-            await ctx.channel.send(f'All extensions have unloaded')
-        else:
-            await ctx.channel.send(f'{success} out of {total} extensions have unloaded')
-
-@bot.command()
-async def reload(ctx: commands.Context, *args) -> None:
-      
-    # Flags
-    all: bool = '--all' in args
-    silent: bool = '--silent' in args
-    verbose: bool = '--verbose' in args
-
-    # Preperations
-    total: int = 0
-    success: int = 0
-    summary: str = ''
-
-    if all:
-        args = list(bot.extensions.keys())
-    else:
-        args = ['extensions.' + arg for arg in args if not arg.startswith('--')]
-
-    # Reload extensions
-    for arg in args:
-
-        try:
-            bot.reload_extension(arg)
-            summary += f'🟢 {arg} sucessfully reloaded\n'
-
-        except ExtensionNotLoaded as err:
-            log.warning(err)
-            summary += f'🟡 {arg} wasn\'t loaded\n'
-
-        except ExtensionNotFound as err:
-            log.warning(err)
-            summary += f'🟠 {arg} doesn\'t exist\n'
-
-        except Exception as err:
-            log.error(err)
-            summary += f'🔴 {arg} failed to reload\n'
-        
-        else:
-            success += 1
-        finally:
-            total += 1
-    
-    # TODO Maybe use discord pages for a nicer interface
-    # Feedback
-    if not silent:
-        if total == 0:
-            await ctx.channel.send(f'No extensions have reloaded')
-            return
-        if verbose:
-            await ctx.channel.send(f'```{summary}```')
-        if success == total:
-            await ctx.channel.send(f'All extensions have reloaded')
-        else:
-            await ctx.channel.send(f'{success} out of {total} extensions have reloaded')
+    # Send greetings
+    await channel.send(f'Welcome {member.mention}, to {channel.guild.name}!')
 
 
 # ---------------------> Main
 
+
 if __name__ == '__main__':
-    for ext in ['extensions.' + file[:-3] for file in listdir('./extensions') if file.endswith('.py')]:
-        try:
-            bot.load_extension(ext)
-        except ExtensionAlreadyLoaded as err:
-            log.warning(err)
-        except Exception as err:
-            log.error(err)
-        
+
+    # Load all extensions
+    with pony.db_session:
+        for ext in util.yield_extensions(prefix_path=True):
+            try:
+
+                # Skip extensions marked inactive
+                name = util.extension_name(ext)
+                if entities.Extension.exists(name=name):
+                    extension = entities.Extension.get(name=name)
+                    if not extension.active:
+                        log.warning(f'Skipped loading inactive extension `{name}`')
+                        continue
+
+                bot.load_extension(ext)
+
+            except Exception as err:
+                log.error(err)
+    
     bot.run(getenv('DISCORD_TOKEN'))
