@@ -111,7 +111,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
     @commands.group(name='quote', description='Subgroup for quote functionality', invoke_without_command=True)
     @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
-    async def quote(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def quote(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -151,7 +151,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
     @quote.command(name='add', description='Add a quote to the database')
     @util.default_command(param_filter=r' *["“](.+)["”] ?- ?(.+)')
     @util.summarized()
-    async def add(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def add(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -181,7 +181,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
     @quote.command(name='last', description='Returns the last n quotes')
     @util.default_command(param_filter=r'^(\d+)$')
     @util.summarized()
-    async def last(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def last(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -224,7 +224,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
     @commands.has_permissions(administrator=True)
     @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
-    async def remove(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def remove(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 

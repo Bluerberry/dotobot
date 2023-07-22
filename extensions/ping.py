@@ -202,7 +202,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     @commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
     @util.default_command()
     @util.summarized()
-    async def ping(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def ping(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -262,7 +262,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     @ping.command(name='setup', description='Ping setup')
     @util.default_command(param_filter=r'^(\d+)$', thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
-    async def setup(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def setup(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -328,7 +328,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     @ping.command(name='subscribe', description='Subscribe to a ping group')
     @util.default_command()
     @util.summarized()
-    async def subscribe(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def subscribe(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -382,7 +382,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     @ping.command(name='unsubscribe', description='Unsubscribe from a ping group')
     @util.default_command()
     @util.summarized()
-    async def unsubscribe(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def unsubscribe(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -438,7 +438,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     @ping.command(name='add', description='Add a ping group')
     @util.default_command()
     @util.summarized()
-    async def add(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def add(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -481,7 +481,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
     @util.default_command()
     @util.summarized()
     @util.dev_only()
-    async def delete(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def delete(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 

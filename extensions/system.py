@@ -77,7 +77,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     @util.dev_only()
-    async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def load(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
 
         # Prepare extension paths
@@ -125,7 +125,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     @util.dev_only()
-    async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def unload(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
 
         # Prepare extension paths
@@ -177,7 +177,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     @util.dev_only()
-    async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
+    async def reload(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> discord.Embed:
         summary = util.Summary(ctx)
 
         # Prepare extension paths
@@ -223,7 +223,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
     @commands.command(name='status', description='Displays extension status')
     @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all'})
-    async def status(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
+    async def status(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> None:
         summary = util.Summary(ctx)
         known  = list(util.yield_extensions(prefix_path=True))
         loaded = list(self.bot.extensions.keys())

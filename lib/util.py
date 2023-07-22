@@ -111,16 +111,33 @@ history = History()
 
 
 # Wraps around commands to split args into flags and params. Also gives summary if summarized
-#   - incoming func MUST follow async (self, ctx, flags, params) -> Any
+#   - incoming func MUST follow async (self, ctx, flags, vars, params) -> Any
 #   - outgoing func follows async (self, ctx, *args, **kwargs) -> Any
 #   - decorator Must be placed below @bot.command() decorator
 
 def default_command(param_filter: str | None = None, thesaurus: dict[str, str] = {'q': 'quiet', 'v': 'verbose'}):
     def wrapper(func):
         async def wrapped(self, ctx, *, args: str = '', **_):
+            SHORT_VAR_FILTER = r'-- ?(\w+) ?= ?(\w+)'
+            LONG_VAR_FILTER = r'-- ?(\w+) ?= ?["“](.+)["“]'
             FLAG_FILTER = r'-- ?(\w+)'
+            
             flags  = []
+            vars   = []
             params = []
+
+            # Filter out vars
+            raw_vars = regex.findall(SHORT_VAR_FILTER, args)
+            raw_vars.append(regex.findall(LONG_VAR_FILTER, args))
+            args = regex.sub(SHORT_VAR_FILTER, '', args)
+            args = regex.sub(LONG_VAR_FILTER, '', args)
+
+            for var in raw_vars:
+                key, value = var
+                if key in thesaurus:
+                    vars[thesaurus[key]] = value
+                else:
+                    vars[key] = value
 
             # Filter out flags
             raw_flags = regex.findall(FLAG_FILTER, args)
@@ -139,7 +156,7 @@ def default_command(param_filter: str | None = None, thesaurus: dict[str, str] =
                 params = regex.findall(param_filter, args)
 
             # Call function
-            return_value = await func(self, ctx, flags, params)
+            return_value = await func(self, ctx, flags, vars, params)
 
             # Give summary
             if hasattr(func, 'summarized'):
