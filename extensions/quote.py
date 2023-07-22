@@ -64,6 +64,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
             else:
                 msg += next_quote
 
+        embed.add_field(name=f'Quotes {start_id} : {quote.quote_id}', value=msg, inline=False)
         await dialog.add(embed=embed)
 
 
@@ -74,7 +75,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
     @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     async def quote(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
-        summary = util.Summary(ctx)
+        summary = util.Summary(ctx, send_on_return=False)
         dialog = util.Dialog(ctx)
 
         # Check params
@@ -90,7 +91,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
             if 'all' in flags:
                 quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id))
             else:
-                quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and str(quote.id) in params))
+                quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and str(quote.quote_id) in params))
 
         # Display quotes
         if not quotes:
@@ -100,9 +101,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
 
         if len(quotes) <= 10:
             summary.set_header(f'Found {len(quotes)} quote{"s" if len(quotes) == 1 else ""}')
-            embed = util.DefaultEmbed(self.bot, 'Quotes', footer=True)
-            embed.add_field(value='\n'.join([str(q) for q in quotes]))
-            await dialog.add(embed=embed)
+            await dialog.add('> ' + '\n> '.join([str(q) for q in quotes]))
         
         else:
             summary.set_header(f'Found {len(quotes)} quotes')
@@ -131,12 +130,12 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
 
         with pony.db_session:
             prev_id = pony.select(quote.quote_id for quote in entities.Quote if quote.guild_id == guild_id).max()
-            next_id = 0 if prev_id is None else prev_id + 1
+            next_id = 1 if prev_id is None else prev_id + 1
             db_quote = entities.Quote(quote_id=next_id, guild_id=guild_id, quote=quote, author=author)
 
         log.info(f"A quote has been added; {str(db_quote)}")
         summary.set_header('Quote sucessfully added')
-        summary.set_field(f'Quote {next_id}', str(db_quote))
+        summary.set_field(f'Quote', str(db_quote))
 
         await dialog.cleanup()
         return summary
