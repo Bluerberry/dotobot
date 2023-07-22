@@ -149,7 +149,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
         return summary
 
     @quote.command(name='add', description='Add a quote to the database')
-    @util.default_command(param_filter=r' *["“](.*)["”] *- *(.*)')
+    @util.default_command(param_filter=r' *["“](.+)["”] ?- ?(.+)')
     @util.summarized()
     async def add(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -312,29 +312,5 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
                 quote.quote, quote.author = quote_string, author
 
         await ctx.send(str(quote))
-
-    @quote.command(aliases=['del', 'delete'], brief='Remove a quote', description='Remove a quote from the database by id.',
-               usage='[quote id]')
-    @commands.has_permissions(administrator=True)
-    async def remove(self, ctx: commands.Context, *, args=None) -> None:
-        try:
-            quote_key, guild_id = str(int(args)), str(ctx.guild.id)
-        except ValueError:
-            await ctx.send(f'Could not find quote {args} in the database')
-            return
-
-        with db_session:
-            quote = get(quote for quote in Quote if quote.quote_id == quote_key and guild_id == guild_id)
-            quote_string = ''
-            if quote is not None:
-                quote_string = str(quote)
-                quote.delete()
-
-        if quote is None:
-            log.warning(f'Quote failed to be removed from database due to unknown key: {quote_key}')
-            await ctx.send(f'Could not find quote {quote_key} in the database')
-            return
-        log.info(f'Quote {quote_string} has been removed')
-        await ctx.send(f'Quote removed\n> {quote_string}')
 
     """
