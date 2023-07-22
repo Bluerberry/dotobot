@@ -98,7 +98,7 @@ class VerifySteamOverride(discord.ui.View):
     async def abort(self, _, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
         self.result = False
-        self.responded.set()   
+        self.responded.set()
 
 
 # ---------------------> Ping cog

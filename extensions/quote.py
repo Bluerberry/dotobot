@@ -1,8 +1,10 @@
 
+import asyncio
 import logging
 from os.path import basename
 import re as regex
 
+import discord
 from discord.ext import commands
 import pony.orm as pony
 
@@ -17,7 +19,42 @@ name = basename(__file__)[:-3]
 log = logging.getLogger(name)
 
 
-# ---------------------> Example cog
+# ---------------------> UI components
+
+
+class VerifyDeleteAll(discord.ui.View):
+    def __init__(self, authorised_user: discord.User, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.authorised_user = authorised_user
+        self.responded = asyncio.Event()
+        self.result = None
+
+    async def await_response(self) -> None:
+        await self.responded.wait()
+        self.disable_all_items()
+
+    @discord.ui.button(label='Delete All', style=discord.ButtonStyle.red, emoji='🗑️')
+    async def override(self, _, interaction: discord.Interaction) -> None:
+        # Only authorised users can interact
+        if interaction.user != self.authorised_user:
+            return
+
+        await interaction.response.defer()
+        self.result = True
+        self.responded.set()
+
+    @discord.ui.button(label='Abort', style=discord.ButtonStyle.gray, emoji='👶')
+    async def abort(self, _, interaction: discord.Interaction) -> None:
+        # Only authorised users can interact
+        if interaction.user != self.authorised_user:
+            return
+
+        await interaction.response.defer()
+        self.result = False
+        self.responded.set()
+
+
+# ---------------------> Quote cog
 
 
 def setup(bot: commands.Bot) -> None:
@@ -183,22 +220,70 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
         await dialog.cleanup()
         return summary
 
+    @quote.command(name='remove', aliases=['del', 'delete'], description='Removes quotes', invoke_without_command=True)
+    @commands.has_permissions(administrator=True)
+    @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.summarized()
+    async def remove(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
+
+        # Check params
+        if not params and 'all' not in flags:
+            summary.set_header('No parameters given')
+            summary.set_field('ValueError', f'User provided no parameters, nor the \'all\' flag. Command usage dictates `$quote remove [quote IDs] --[flags]`')
+            log.warn(f'No parameters given')
+            await dialog.cleanup()
+            return summary
+        
+        # Get quotes
+        with pony.db_session:
+            if 'all' in flags:
+                quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id))
+            else:
+                quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and str(quote.quote_id) in params))
+        
+            # Check query
+            if not quotes:
+                summary.set_header('No quotes found')
+                summary.set_field('Invalid parameters', f'The given quote IDs ({" ,".join(params)}) don\'t exist!')
+                log.warn(f'The given quote IDs ({" ,".join(params)}) don\'t exist, and can\'t be removed from the database')
+                await dialog.cleanup()
+                return summary
+
+            # Verify bulk delete
+            if len(quotes) >= 10:
+                log.warn(f'User `{ctx.author.name}` ({ctx.author.id}) is about to delete {len(quotes)} quotes')
+                view = VerifyDeleteAll(ctx.author)
+                await dialog.set(f'You are about to delete {len(quotes)} quotes. Are you really fucking sure?', view=view)
+                await view.await_response()
+
+                if not view.result:
+                    summary.set_header('Bulk delete has been aborted')
+                    summary.set_field('Aborted', f'User `{ctx.author.name}` ({ctx.author.id}) opted not to delete {len(quotes)} quotes.')
+                    log.info('Bulk delete has been aborted')
+                    await dialog.cleanup()
+                    return summary
+
+            # Delete quotes
+            msg = ''
+            count = 0
+            for quote in quotes:
+                count += 1
+                msg += f'Quote {str(quote)}\n'
+                log.info(f'Quote {quote.quote_id} from guild {quote.guild_id} has been removed')
+                quote.delete()
+        
+        summary.set_header(f'Sucessfully removed {count} quote{"" if count == 1 else "s"}')
+        if count < 20:
+            summary.set_field('Removed quotes', msg)
+        await dialog.cleanup()
+        return summary
+            
+
+
+
     """ Legacy quote cog
-
-    @quote.command(brief='Return the last few quotes', description='Return the last x quotes', usage='(amount)')
-    async def last(self, ctx: commands.Context, arg: int = 10):
-        try:
-            arg = int(arg)
-        except ValueError:
-            arg = 10
-
-        with db_session:
-            quotes = select(quote for quote in Quote if quote.guild_id == ctx.guild.id)\
-                .order_by(desc(Quote.quote_id))\
-                .limit(arg)[:]
-        quotes.reverse()
-
-        await self.mass_quote(ctx, quotes)
 
     @quote.command(aliases=['change'], brief='Edit a quote',
                description='Either replace a quote completely, only the author, or just the quote.',
