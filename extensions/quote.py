@@ -75,7 +75,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
     @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     async def quote(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
-        summary = util.Summary(ctx, send_on_return=False)
+        summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
         # Check params
@@ -107,6 +107,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
             summary.set_header(f'Found {len(quotes)} quotes')
             await self.mass_quote(dialog, quotes)
 
+        summary.send_on_return = False
         await dialog.cleanup()
         return summary
 
@@ -137,6 +138,48 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
         summary.set_header('Quote sucessfully added')
         summary.set_field(f'Quote', str(db_quote))
 
+        await dialog.cleanup()
+        return summary
+
+    @quote.command(name='last', description='Returns the last n quotes')
+    @util.default_command(param_filter=r'^(\d+)$')
+    @util.summarized()
+    async def last(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
+
+        # Check params
+        if not params:
+            summary.set_header('No parameters given')
+            summary.set_field('ValueError', f'User provided no parameters. Command usage dictates `$quote last [amount] --[flags]`')
+            log.warn(f'No parameters given')
+            await dialog.cleanup()
+            return summary
+        
+        # Get quotes
+        with pony.db_session:
+            quotes = list(pony.select(quote for quote in entities.Quote if quote.guild_id == ctx.guild.id) \
+                          .order_by(pony.desc(entities.Quote.quote_id)) \
+                          .limit(params[0])
+                          )
+        
+        quotes.reverse()
+
+        # Display quotes
+        if not quotes:
+            summary.set_header('No quotes found')
+            await dialog.cleanup()
+            return summary
+
+        if len(quotes) <= 10:
+            summary.set_header(f'Found {len(quotes)} quote{"s" if len(quotes) == 1 else ""}')
+            await dialog.add('> ' + '\n> '.join([str(q) for q in quotes]))
+        
+        else:
+            summary.set_header(f'Found {len(quotes)} quotes')
+            await self.mass_quote(dialog, quotes)
+
+        summary.send_on_return = False
         await dialog.cleanup()
         return summary
 
