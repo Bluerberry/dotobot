@@ -3,7 +3,7 @@ import re as regex
 from glob import iglob
 from os import getenv
 from os.path import join
-from typing import Generator, Tuple
+from typing import Any, Generator, Tuple
 
 import dotenv
 import discord
@@ -23,6 +23,21 @@ dotenv.load_dotenv()
 
 # ---------------------> Classes
 
+
+class SearchItem:
+    def __init__(self, item: Any, text: str) -> None:
+        self.item = item
+        self.text = text
+
+        self.sanitized         = None
+        self.overlap           = None
+        self.relative_overlap  = None
+        self.distance          = None
+        self.relative_distance = None
+        self.ranking           = None
+    
+    def __repr__(self) -> str:
+        return f'\nitem {self.item}\ntext {self.text}\nsanitized {self.sanitized if self.sanitized else "None"}\noverlap {self.overlap if self.overlap else "None"}\ndistance {self.distance if self.distance else "None"}\nranking {self.ranking if self.ranking else "None"}'
 
 class Dialog:
     def __init__(self, ctx: commands.Context) -> None:
@@ -246,7 +261,7 @@ def extension_name(extension_path: str) -> str:
 #   - Return type is an ordered list of dictionaries with the fields { name, sanitized, overlap, distance }
 #   - The return type is ordered first by the largest overlap, then by the smallest distance
 
-def fuzzy_search(options: list[str], query: str) -> Tuple[bool, list[dict]]:
+def fuzzy_search(options: list[SearchItem], query: str) -> Tuple[bool, list[SearchItem]]:
     def sanitize(input: str) -> str:
         output = input.lower()
         filter = regex.compile('[^\w ]')
@@ -300,35 +315,29 @@ def fuzzy_search(options: list[str], query: str) -> Tuple[bool, list[dict]]:
 
     # Sanitize input
     if len(options) < 1:
-        return False, []
-
-    # Sanitize options
-    results = [{
-     'name': option,
-     'sanitized': sanitize(option),
-     'overlap': None,
-     'relative_overlap': None,
-     'distance': None,
-     'relative_distance': None
-    } for option in options]
+        return True, []
 
     # Calculate scores
-    for result in results:
-        result['overlap'] = overlap(query, result['sanitized'])
-        result['relative_overlap'] = result['overlap'] / len(result['sanitized'])
-        result['distance'] = distance(query, result['sanitized'])
-        result['relative_distance'] = result['distance'] / len(result['sanitized'])
+    for option in options:
+        option.sanitized = sanitize(option.text)
+        option.overlap = overlap(query, option.sanitized)
+        option.relative_overlap = option.overlap / len(option.sanitized)
+        option.distance = distance(query, option.sanitized)
+        option.relative_distance = option.distance / len(option.sanitized)
 
-    # Sort results
-    results.sort(key=lambda result: result['distance'])
-    results.sort(key=lambda result: result['overlap'], reverse=True)
+    # Sort options
+    options.sort(key=lambda option: option.distance)
+    options.sort(key=lambda option: option.overlap, reverse=True)
 
-    # Check if results are conclusive
-    conclusive = results[0]['relative_overlap'] > MIN_RELATIVE_OVERLAP and                   \
-                 results[0]['relative_distance'] < MAX_RELATIVE_DISTANCE and (               \
-                     len(results) < 2 or                                                     \
-                     results[0]['overlap'] > results[1]['overlap'] + FUZZY_OVERLAP_MARGIN or \
-                     results[0]['distance'] < results[1]['distance'] - FUZZY_DISTANCE_MARGIN \
+    for ranking, option in enumerate(options, start=1):
+        option.ranking = ranking
+
+    # Check if options are conclusive
+    conclusive = options[0].relative_overlap > MIN_RELATIVE_OVERLAP and                \
+                 options[0].relative_distance < MAX_RELATIVE_DISTANCE and (            \
+                     len(options) < 2 or                                               \
+                     options[0].overlap > options[1].overlap + FUZZY_OVERLAP_MARGIN or \
+                     options[0].distance < options[1].distance - FUZZY_DISTANCE_MARGIN \
                  )
 
-    return conclusive, results
+    return conclusive, options
