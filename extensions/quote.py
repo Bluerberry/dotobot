@@ -1,9 +1,11 @@
 
 import asyncio
 import logging
+from os import getenv
 from os.path import basename
 import re as regex
 
+import dotenv
 import discord
 from discord.ext import commands
 import pony.orm as pony
@@ -17,6 +19,12 @@ import lib.util as util
 
 name = basename(__file__)[:-3]
 log = logging.getLogger(name)
+
+
+# ---------------------> Environment setup
+
+
+dotenv.load_dotenv()
 
 
 # ---------------------> UI components
@@ -220,7 +228,7 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
         await dialog.cleanup()
         return summary
 
-    @quote.command(name='remove', aliases=['del', 'delete'], description='Removes quotes', invoke_without_command=True)
+    @quote.command(name='remove', aliases=['del', 'delete'], description='Removes quotes')
     @commands.has_permissions(administrator=True)
     @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
@@ -251,8 +259,18 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
                 await dialog.cleanup()
                 return summary
 
-            # Verify bulk delete
+            # Bulk delete
             if len(quotes) >= 10:
+                
+                # Only developers can bulk delete
+                if str(ctx.author.id) not in getenv('DEVELOPER_IDS'):
+                    summary.set_header('Only developers can bulk delete')
+                    summary.set_field('Aborted', f'User `{ctx.author.name}` ({ctx.author.id}) is not a developer, thus can\'t bulk delete.')
+                    log.info('Bulk delete is cancelled ')
+                    await dialog.cleanup()
+                    return summary
+
+                # Verify bulk delete
                 log.warn(f'User `{ctx.author.name}` ({ctx.author.id}) is about to delete {len(quotes)} quotes')
                 view = VerifyDeleteAll(ctx.author)
                 await dialog.set(f'You are about to delete {len(quotes)} quotes. Are you really fucking sure?', view=view)
@@ -260,8 +278,8 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
 
                 if not view.result:
                     summary.set_header('Bulk delete has been aborted')
-                    summary.set_field('Aborted', f'User `{ctx.author.name}` ({ctx.author.id}) opted not to delete {len(quotes)} quotes.')
-                    log.info('Bulk delete has been aborted')
+                    summary.set_field('Aborted', f'User `{ctx.author.name}` ({ctx.author.id}) doesn\'t have permission to delete {len(quotes)}.')
+                    log.info('Bulk delete has been aborted due to lack of permissions')
                     await dialog.cleanup()
                     return summary
 
@@ -280,37 +298,42 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
         await dialog.cleanup()
         return summary
             
-
-
-
-    """ Legacy quote cog
-
-    @quote.command(aliases=['change'], brief='Edit a quote',
-               description='Either replace a quote completely, only the author, or just the quote.',
-               usage='[quote id] (author/quote) "[quote]" - [author]')
+    @quote.command(name='edit', description='Edits quotes')
     @commands.has_permissions(administrator=True)
-    async def edit(self, ctx: commands.Context, *args) -> None:
-        try:
-            index = str(int(args[0]))  # check for impostor aka strings
-        except ValueError:
-            log.warning(f'Quote edit could not find a quote in the database with key: {args[0]}')
-            await ctx.send(f'Could not find {args[0]} in the database')
-            return
-        request, guild_id = args[1], str(ctx.guild.id)
+    @util.default_command(param_filter=r'^(\d+)$')
+    @util.summarized()
+    async def edit(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
 
-        with db_session:
-            quote = get(quote for quote in Quote if quote.quote_id == index and guild_id == guild_id)
-            if quote is None:
-                await ctx.send(f'Quote id not found {index} in the database')
+        # Check params
+        if not params:
+            summary.set_header('No parameters given')
+            summary.set_field('ValueError', f'User provided no parameters. Command usage dictates `$quote edit [quote ID] (--content="[content]") (--author="[author]") --[flags]`')
+            log.warn(f'No parameters given')
+            await dialog.cleanup()
+            return summary
+        
+        with pony.db_session:
 
-            if request == 'author':
-                quote.author = ' '.join(args[2:])
-            elif request == 'quote':
-                quote.quote = ' '.join(args[2:]).lstrip('"').rstrip('"')
-            else:
-                quote_string, author = split_quote(' '.join(ctx.message.content.split()[3:]))
-                quote.quote, quote.author = quote_string, author
+            # Get quote
+            db_quote = entities.Quote.get(quote_id=params[0])
+            if not db_quote:
+                summary.set_header('Quote not found')
+                summary.set_field('ValueError', f'User provided bad parameters. No quote with ID ({params[0]}) Found')
+                log.warn(f'Quote not found')
+                await dialog.cleanup()
+                return summary
+                            
+            # Edit content
+            if 'content' in vars:
+                db_quote.quote = vars['content']
+                log.info(f'Content of quote ({db_quote.quote_id}) edited to "{vars["content"]}"')
+            if 'author' in vars:
+                db_quote.author = vars['author']
+                log.info(f'Author of quote ({db_quote.quote_id}) edited to "{vars["author"]}"')
 
-        await ctx.send(str(quote))
-
-    """
+        summary.set_header('Succesfully edited quote')
+        summary.set_field('New quote', str(db_quote))
+        await dialog.cleanup()
+        return summary

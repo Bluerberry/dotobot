@@ -123,12 +123,12 @@ def default_command(param_filter: str | None = None, thesaurus: dict[str, str] =
             FLAG_FILTER = r'-- ?(\w+)'
             
             flags  = []
-            vars   = []
+            vars   = {}
             params = []
 
             # Filter out vars
             raw_vars = regex.findall(SHORT_VAR_FILTER, args)
-            raw_vars.append(regex.findall(LONG_VAR_FILTER, args))
+            raw_vars.extend(regex.findall(LONG_VAR_FILTER, args))
             args = regex.sub(SHORT_VAR_FILTER, '', args)
             args = regex.sub(LONG_VAR_FILTER, '', args)
 
@@ -217,7 +217,7 @@ def dev_only():
 #   - recursive toggles recursive search                    default is True
 
 def yield_extensions(sys_path: str = 'extensions', prefix_path: bool = False, recursive: bool = True) -> Generator[str, None, None]:
-    sys_path = join(sys_path, '**\\*.py' if recursive else '*.py')     # Build path dependent on requirements
+    sys_path = join(sys_path, '**/*.py' if recursive else '*.py')     # Build path dependent on requirements
     for file in iglob(sys_path, recursive=recursive):                  # Use iglob to match all python files
         components = regex.findall(r'\w+', file)[:-1]                  # Split into components and trim extension
         yield '.'.join(components) if prefix_path else components[-1]  # Either return import path or extension name
