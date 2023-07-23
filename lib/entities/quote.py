@@ -7,8 +7,8 @@ class Quote(db.Entity):
     guild_id = Required(int, size=64)
     PrimaryKey(quote_id, guild_id)
 
-    quote  = Required(str)
+    content = Required(str)
     author = Required(str)
 
     def __str__(self) -> str:
-        return f'{self.quote_id}: \"{self.quote}\" - {self.author}'
+        return f'{self.quote_id}: \"{self.content}\" - {self.author}'
