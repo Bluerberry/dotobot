@@ -133,9 +133,9 @@ history = History()
 def default_command(param_filter: str | None = None, thesaurus: dict[str, str] = {'q': 'quiet', 'v': 'verbose'}):
     def wrapper(func):
         async def wrapped(self, ctx, *, args: str = '', **_):
-            SHORT_VAR_FILTER = r'-- ?(\w+) ?= ?(\w+)'
-            LONG_VAR_FILTER = r'-- ?(\w+) ?= ?["“](.+)["“]'
-            FLAG_FILTER = r'-- ?(\w+)'
+            SHORT_VAR_FILTER = r'-- ?([^ ]+) ?= ?([^ ]+)'
+            LONG_VAR_FILTER = r'-- ?([^ ]+) ?= ?["“](.+)["“]'
+            FLAG_FILTER = r'-- ?([^ ]+)'
             
             flags  = []
             vars   = {}

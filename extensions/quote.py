@@ -125,6 +125,9 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
         embed.add_field(name=f'Quotes {start_id} : {quote.quote_id}', value=msg, inline=False)
         await dialog.add(embed=embed)
 
+    def get_highest_id(self, guild_id: int) -> int:
+        return pony.select(quote.quote_id for quote in entities.Quote if quote.guild_id == guild_id).max()
+
 
     # ---------------------> Commands
 
@@ -137,19 +140,45 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
         dialog = util.Dialog(ctx)
 
         # Check params
-        if not params and 'all' not in flags:
+        if not params and 'all' not in flags and 'start' not in vars and 'stop' not in vars:
             summary.set_header('No parameters given')
-            summary.set_field('ValueError', f'User provided no parameters, nor the \'all\' flag. Command usage dictates `$quote [quote IDs] --[flags]`')
+            summary.set_field('ValueError', f'User provided no parameters, nor the \'all\' flag. Command usage dictates `$quote [quote IDs] (--start=[start ID]) (--stop=[stop ID]) --[flags]`')
             log.warn(f'No parameters given')
             await dialog.cleanup()
             return summary
+        
+        try:
+            if 'start' in vars:
+                vars['start'] = int(vars['start'])
+            if 'stop' in vars:
+                vars['stop'] = int(vars['stop'])
+                
+        except ValueError:
+            summary.set_header('Bad variables given')
+            summary.set_field('ValueError', f'User provided non-numeric variables. Command usage dictates `$quote [quote IDs] (--start=[start ID]) (--stop=[stop ID]) --[flags]`')
+            log.warn(f'Bad variables given')
+            await dialog.cleanup()
+            return summary
+        
         
         # Get quotes
         with pony.db_session:
             if 'all' in flags:
                 quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id))
+
             else:
-                quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and str(quote.quote_id) in params))
+                if 'start' in vars or 'stop' in vars:
+                    highest_id = self.get_highest_id(ctx.guild.id)
+                    start, stop = 0, highest_id
+
+                    if 'start' in vars:
+                        start = vars['start'] if vars['start'] >= 0 else highest_id + vars['start']
+                    if 'stop' in vars:
+                        stop = vars['stop'] if vars['stop'] >= 0 else highest_id + vars['stop']
+
+                    quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and quote.quote_id >= start and quote.quote_id <= stop))
+                else:
+                    quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and str(quote.quote_id) in params))
 
         # Display quotes
         await self.display_quotes(dialog, summary, quotes)
@@ -171,47 +200,18 @@ class Quote(commands.Cog, name=name, description='Manages the quotes'):
             await dialog.cleanup()
             return summary
 
-        quote, author = params[0]
+        content, author = params[0]
         guild_id = ctx.guild.id
 
         with pony.db_session:
-            prev_id = pony.select(quote.quote_id for quote in entities.Quote if quote.guild_id == guild_id).max()
+            prev_id = self.get_highest_id(guild_id)
             next_id = 1 if prev_id is None else prev_id + 1
-            db_quote = entities.Quote(quote_id=next_id, guild_id=guild_id, quote=quote, author=author)
+            db_quote = entities.Quote(quote_id=next_id, guild_id=guild_id, content=content, author=author)
 
         log.info(f"A quote has been added; {str(db_quote)}")
         summary.set_header('Quote sucessfully added')
         summary.set_field(f'Quote', str(db_quote))
 
-        await dialog.cleanup()
-        return summary
-
-    @quote.command(name='last', description='Returns the last n quotes')
-    @util.default_command(param_filter=r'^(\d+)$')
-    @util.summarized()
-    async def last(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
-        summary = util.Summary(ctx)
-        dialog = util.Dialog(ctx)
-
-        # Check params
-        if not params:
-            summary.set_header('No parameters given')
-            summary.set_field('ValueError', f'User provided no parameters. Command usage dictates `$quote last [amount] --[flags]`')
-            log.warn(f'No parameters given')
-            await dialog.cleanup()
-            return summary
-        
-        # Get quotes
-        with pony.db_session:
-            quotes = list(pony.select(quote for quote in entities.Quote if quote.guild_id == ctx.guild.id) \
-                          .order_by(pony.desc(entities.Quote.quote_id)) \
-                          .limit(params[0])
-                          )
-            
-            quotes.reverse()
-
-        # Display quotes
-        await self.display_quotes(dialog, summary, quotes)
         await dialog.cleanup()
         return summary
 
