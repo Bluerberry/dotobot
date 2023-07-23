@@ -98,7 +98,7 @@ class VerifySteamOverride(discord.ui.View):
     async def abort(self, _, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
         self.result = False
-        self.responded.set()   
+        self.responded.set()
 
 
 # ---------------------> Ping cog
@@ -200,16 +200,16 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
 
 
     @commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
-    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command()
     @util.summarized()
-    async def ping(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def ping(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
         # Check params
         if not params:
             summary.set_header('Bad parameters Given')
-            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$ping [ping group] -[flags]`')
+            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$ping [ping group] --[flags]`')
             log.warn(f'Bad parameters given')
             await dialog.cleanup()
             return summary
@@ -260,16 +260,16 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
 
     @ping.command(name='setup', description='Ping setup')
-    @util.default_command(param_filter=r'^[\d]+$', thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'^(\d+)$', thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
-    async def setup(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def setup(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
         # Check params
         if not params:
             summary.set_header('Bad parameters Given')
-            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$ping setup [Steam ID64] -[flags]`')
+            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$ping setup [Steam ID64] --[flags]`')
             log.warn(f'Bad parameters given')
             await dialog.cleanup()
             return summary
@@ -326,9 +326,9 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
 
     @ping.command(name='subscribe', description='Subscribe to a ping group')
-    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command()
     @util.summarized()
-    async def subscribe(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def subscribe(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -336,7 +336,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         if not params:
             log.error(f'No parameters given')
             summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [ping group] -[flags]`')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [ping group] --[flags]`')
             await dialog.cleanup()
             return summary
 
@@ -380,9 +380,9 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
 
     @ping.command(name='unsubscribe', description='Unsubscribe from a ping group')
-    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command()
     @util.summarized()
-    async def unsubscribe(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def unsubscribe(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -390,7 +390,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         if not params:
             log.error(f'No parameters given')
             summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [query] -[flags]`')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [query] --[flags]`')
             await dialog.cleanup()
             return summary
 
@@ -436,9 +436,9 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
 
     @ping.command(name='add', description='Add a ping group')
-    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command()
     @util.summarized()
-    async def add(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def add(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -446,7 +446,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         if not params:
             log.error(f'No parameters given')
             summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] -[flags]`')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] --[flags]`')
             await dialog.cleanup()
             return summary
         
@@ -478,10 +478,10 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
     
     @ping.command(name='delete', description='Delete a ping group')
-    @util.default_command(param_filter=r'.+', thesaurus={'q': 'quiet', 'v': 'verbose'})
+    @util.default_command()
     @util.summarized()
     @util.dev_only()
-    async def delete(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def delete(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         dialog = util.Dialog(ctx)
 
@@ -489,7 +489,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         if not params:
             log.error(f'No parameters given')
             summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] -[flags]`')
+            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] --[flags]`')
             await dialog.cleanup()
             return summary
         

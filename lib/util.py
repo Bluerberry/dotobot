@@ -110,36 +110,53 @@ history = History()
 # ---------------------> Wrappers
 
 
-# Wraps around commands to split args into flags and params.
-#   - incoming func MUST follow async (self, ctx, flags, params) -> Any
+# Wraps around commands to split args into flags and params. Also gives summary if summarized
+#   - incoming func MUST follow async (self, ctx, flags, vars, params) -> Any
 #   - outgoing func follows async (self, ctx, *args, **kwargs) -> Any
-#   - decorator should be placed below @bot.command() decorator
+#   - decorator Must be placed below @bot.command() decorator
 
-def default_command(param_filter: str | None = None, thesaurus: dict[str, str] = {}):
+def default_command(param_filter: str | None = None, thesaurus: dict[str, str] = {'q': 'quiet', 'v': 'verbose'}):
     def wrapper(func):
-        async def wrapped(self, ctx, *args, **_):
+        async def wrapped(self, ctx, *, args: str = '', **_):
+            SHORT_VAR_FILTER = r'-- ?(\w+) ?= ?(\w+)'
+            LONG_VAR_FILTER = r'-- ?(\w+) ?= ?["“](.+)["“]'
+            FLAG_FILTER = r'-- ?(\w+)'
+            
             flags  = []
+            vars   = {}
             params = []
 
-            for arg in args:
+            # Filter out vars
+            raw_vars = regex.findall(SHORT_VAR_FILTER, args)
+            raw_vars.extend(regex.findall(LONG_VAR_FILTER, args))
+            args = regex.sub(SHORT_VAR_FILTER, '', args)
+            args = regex.sub(LONG_VAR_FILTER, '', args)
 
-                # Parse flags
-                if arg.startswith('-'):
-                    flag = arg[1:]
-                    if flag in thesaurus.keys():
-                        flag = thesaurus[flag]
-                    flags.append(flag)
-
-                # Parse params
+            for var in raw_vars:
+                key, value = var
+                if key in thesaurus:
+                    vars[thesaurus[key]] = value
                 else:
-                    params.append(arg)
+                    vars[key] = value
+
+            # Filter out flags
+            raw_flags = regex.findall(FLAG_FILTER, args)
+            args = regex.sub(FLAG_FILTER, '', args)
+
+            for flag in raw_flags:
+                if flag in thesaurus:
+                    flags.append(thesaurus[flag])
+                else:
+                    flags.append(flag)
             
-            # Filter params
-            if param_filter:
-                params = regex.findall(param_filter, ' '.join(params))
+            # Filter parameters
+            if param_filter == None:
+                params.append(args)
+            else:
+                params = regex.findall(param_filter, args)
 
             # Call function
-            return_value = await func(self, ctx, flags, params)
+            return_value = await func(self, ctx, flags, vars, params)
 
             # Give summary
             if hasattr(func, 'summarized'):
@@ -155,10 +172,10 @@ def default_command(param_filter: str | None = None, thesaurus: dict[str, str] =
         return wrapped
     return wrapper
 
-# Wraps around commands to add summary to history
+# Wraps around commands to add summary to history. Also gives summary if default_command
 #   - incoming func MUST return Summary
 #   - outgoing func signature does not change
-#   - decorator should be placed below @bot.command() decorator
+#   - decorator MUST be placed below @bot.command() decorator
 
 def summarized():
     def wrapper(func):
@@ -181,8 +198,9 @@ def summarized():
     return wrapper
 
 # Wraps around commands to make it dev only
+#   - incoming func signature does not matter
 #   - outgoing func signature does not change
-#   - decorator should be placed below @bot.command() decorator
+#   - decorator MUST be placed below @bot.command() decorator
 
 def dev_only():
     def predicate(ctx):

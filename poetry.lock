@@ -248,13 +248,13 @@ files = [
 
 [[package]]
 name = "discord-pretty-help"
-version = "2.0.5"
+version = "2.0.7"
 description = "And nicer looking interactive help menu for discord.py"
 optional = false
 python-versions = ">=3.8,<4.0"
 files = [
-    {file = "discord_pretty_help-2.0.5-py3-none-any.whl", hash = "sha256:9a4f65fd3d0d25d4acde377f59493d2e156db8d368d22609c7ebec16f07cd151"},
-    {file = "discord_pretty_help-2.0.5.tar.gz", hash = "sha256:7f1262f3522cb6dda9e5227e9910c1f9dcef53bafad31003743d669fac507890"},
+    {file = "discord_pretty_help-2.0.7-py3-none-any.whl", hash = "sha256:ca8ee02bed8012b511fde57303d003c30c67d59b106f8afaa01bb7befad37990"},
+    {file = "discord_pretty_help-2.0.7.tar.gz", hash = "sha256:965154e4660be07a5050413d7ee7c3ea62a12d1b8d30b39741d23be2cfe4a748"},
 ]
 
 [[package]]
@@ -535,13 +535,13 @@ files = [
 
 [[package]]
 name = "urllib3"
-version = "2.0.2"
+version = "2.0.3"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "urllib3-2.0.2-py3-none-any.whl", hash = "sha256:d055c2f9d38dc53c808f6fdc8eab7360b6fdbbde02340ed25cfbcd817c62469e"},
-    {file = "urllib3-2.0.2.tar.gz", hash = "sha256:61717a1095d7e155cdb737ac7bb2f4324a858a1e2e6466f6d03ff630ca68d3cc"},
+    {file = "urllib3-2.0.3-py3-none-any.whl", hash = "sha256:48e7fafa40319d358848e1bc6809b208340fafe2096f1725d05d67443d0483d1"},
+    {file = "urllib3-2.0.3.tar.gz", hash = "sha256:bee28b5e56addb8226c96f7f13ac28cb4c301dd5ea8a6ca179c0b9835e032825"},
 ]
 
 [package.extras]
