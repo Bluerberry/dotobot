@@ -11,4 +11,4 @@ class Quote(db.Entity):
     author = Required(str)
 
     def __str__(self) -> str:
-        return f'{self.quote_id}: \"{self.content}\" - {self.author}'
+        return f'{self.quote_id}) \"{self.content}\" - {self.author}'
