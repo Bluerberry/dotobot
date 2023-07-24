@@ -85,7 +85,7 @@ class History:
 
     def add(self, summary: Summary) -> None:
         self.history.append(summary) # Add to history
-        self.history = self.history[:10]         # Trim history
+        self.history = self.history[-10:] # Trim history
 
     def last(self) -> Summary | None:
         if len(self.history) == 0:
@@ -130,7 +130,7 @@ history = History()
 #   - outgoing func follows async (self, ctx, *args, **kwargs) -> Any
 #   - decorator Must be placed below @bot.command() decorator
 
-def default_command(param_filter: str | None = None, thesaurus: dict[str, str] = {'q': 'quiet', 'v': 'verbose'}):
+def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = {'q': 'quiet', 'v': 'verbose'}):
     def wrapper(func):
         async def wrapped(self, ctx, *, args: str = '', **_):
             SHORT_VAR_FILTER = r'-- ?([^ ]+) ?= ?([^ ]+)'
@@ -142,10 +142,10 @@ def default_command(param_filter: str | None = None, thesaurus: dict[str, str] =
             params = []
 
             # Filter out vars
-            raw_vars = regex.findall(SHORT_VAR_FILTER, args)
-            raw_vars.extend(regex.findall(LONG_VAR_FILTER, args))
-            args = regex.sub(SHORT_VAR_FILTER, '', args)
+            raw_vars = regex.findall(LONG_VAR_FILTER, args)
             args = regex.sub(LONG_VAR_FILTER, '', args)
+            raw_vars.extend(regex.findall(SHORT_VAR_FILTER, args))
+            args = regex.sub(SHORT_VAR_FILTER, '', args)
 
             for var in raw_vars:
                 key, value = var
@@ -165,10 +165,7 @@ def default_command(param_filter: str | None = None, thesaurus: dict[str, str] =
                     flags.append(flag)
             
             # Filter parameters
-            if param_filter == None:
-                params.append(args)
-            else:
-                params = regex.findall(param_filter, args)
+            params = regex.findall(param_filter, args)
 
             # Call function
             return_value = await func(self, ctx, flags, vars, params)
