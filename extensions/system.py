@@ -2,15 +2,13 @@
 import logging
 from os.path import basename
 
-import dotenv
 import discord
-from discord import ExtensionAlreadyLoaded, ExtensionNotFound, ExtensionNotLoaded
-from discord.ext import commands
+import dotenv
 import pony.orm as pony
+from discord.ext import commands
 
-import lib.util as util
 import lib.entities as entities
-
+import lib.util as util
 
 # ---------------------> Logging setup
 
@@ -50,9 +48,13 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
+
+    # ---------------------> Commands
+
+
     @commands.command(name='summary', description='Provides summary of previous command, or reference command.')
     @util.default_command()
-    async def summary(self, ctx: commands.Context, *_) -> None:
+    async def summary(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> None:
 
         # Finding summary to provide
         reference = ctx.message.reference
@@ -71,10 +73,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         await summary.ctx.reply(embed=summary.make_embed())
 
     @commands.command(name='load', description='Loads extensions by name.')
-    @util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     @util.dev_only()
-    async def load(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def load(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
 
         # Prepare extension paths
@@ -93,11 +95,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 field += f'🟢 {util.extension_name(ext).capitalize()} sucessfully loaded\n'
                 success += 1
 
-            except ExtensionAlreadyLoaded as err:
+            except discord.ExtensionAlreadyLoaded as err:
                 log.warning(err)
                 field += f'🟡 {util.extension_name(ext).capitalize()} was already loaded\n'
 
-            except ExtensionNotFound as err:
+            except discord.ExtensionNotFound as err:
                 log.warning(err)
                 field += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
 
@@ -119,10 +121,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         return summary
 
     @commands.command(name='unload', description='Unloads extensions by name.')
-    @util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     @util.dev_only()
-    async def unload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> util.Summary:
+    async def unload(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
 
         # Prepare extension paths
@@ -137,7 +139,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         for ext in params:
 
             if util.extension_name(ext) == 'system':
-                field += f'🔴 {util.extension_name(ext).capitalize()} should\'nt unload\n'
+                field += f'🔴 {util.extension_name(ext).capitalize()} shouldn\'t unload\n'
                 continue
 
             try:
@@ -145,11 +147,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 field += f'🟢 {util.extension_name(ext).capitalize()} sucessfully unloaded\n'
                 success += 1
 
-            except ExtensionNotLoaded as err:
+            except discord.ExtensionNotLoaded as err:
                 log.warning(err)
                 field += f'🟡 {util.extension_name(ext).capitalize()} was already unloaded\n'
 
-            except ExtensionNotFound as err:
+            except discord.ExtensionNotFound as err:
                 log.warning(err)
                 field += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
 
@@ -171,10 +173,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         return summary
 
     @commands.command(name='reload', description='Reloads extensions by name.')
-    @util.default_command(thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     @util.dev_only()
-    async def reload(self, ctx: commands.Context, flags: list[str], params: list[str]) -> discord.Embed:
+    async def reload(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> discord.Embed:
         summary = util.Summary(ctx)
 
         # Prepare extension paths
@@ -193,11 +195,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 field += f'🟢 {util.extension_name(ext).capitalize()} sucessfully reloaded\n'
                 success += 1
 
-            except ExtensionNotLoaded as err:
+            except discord.ExtensionNotLoaded as err:
                 log.warning(err)
                 field += f'🟡 {util.extension_name(ext).capitalize()} wasn\'t loaded\n'
 
-            except ExtensionNotFound as err:
+            except discord.ExtensionNotFound as err:
                 log.warning(err)
                 field += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
 
@@ -219,8 +221,8 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         return summary
 
     @commands.command(name='status', description='Displays extension status')
-    @util.default_command(thesaurus={'a': 'all'})
-    async def status(self, ctx: commands.Context, flags: list[str], params: list[str]) -> None:
+    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all'})
+    async def status(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> None:
         summary = util.Summary(ctx)
         known  = list(util.yield_extensions(prefix_path=True))
         loaded = list(self.bot.extensions.keys())
