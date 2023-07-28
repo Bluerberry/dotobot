@@ -100,7 +100,7 @@ def teardown(bot: commands.Bot) -> None:
     
     log.info(f'Extension has been destroyed: {name}')
 
-class Ping(commands.Cog, name = name, description = 'Better ping utility'):
+class Ping(commands.Cog, name=name, description='Better ping utility'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.steam = steam.Client(getenv('STEAM_TOKEN'))

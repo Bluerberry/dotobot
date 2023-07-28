@@ -53,7 +53,8 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
 
     @commands.command(name='summary', description='Provides summary of previous command, or reference command.')
-    async def summary(self, ctx: commands.Context) -> None:
+    @util.default_command()
+    async def summary(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> None:
 
         # Finding summary to provide
         reference = ctx.message.reference

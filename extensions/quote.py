@@ -63,7 +63,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
             summary.set_header(f'Found {len(quotes)} quotes')
             await self.mass_quote(dialog, quotes)
 
-    async def mass_quote(self, dialog: util.Dialog, quotes: list[entities.Quote]):
+    async def mass_quote(self, dialog: util.Dialog, quotes: list[entities.Quote]) -> None:
         start_id = quotes[0].quote_id
         block_count = 0
         msg = ''
