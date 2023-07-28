@@ -2,15 +2,13 @@
 import logging
 from os.path import basename
 
-import dotenv
 import discord
-from discord import ExtensionAlreadyLoaded, ExtensionNotFound, ExtensionNotLoaded
-from discord.ext import commands
+import dotenv
 import pony.orm as pony
+from discord.ext import commands
 
-import lib.util as util
 import lib.entities as entities
-
+import lib.util as util
 
 # ---------------------> Logging setup
 
@@ -96,11 +94,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 field += f'🟢 {util.extension_name(ext).capitalize()} sucessfully loaded\n'
                 success += 1
 
-            except ExtensionAlreadyLoaded as err:
+            except discord.ExtensionAlreadyLoaded as err:
                 log.warning(err)
                 field += f'🟡 {util.extension_name(ext).capitalize()} was already loaded\n'
 
-            except ExtensionNotFound as err:
+            except discord.ExtensionNotFound as err:
                 log.warning(err)
                 field += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
 
@@ -148,11 +146,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 field += f'🟢 {util.extension_name(ext).capitalize()} sucessfully unloaded\n'
                 success += 1
 
-            except ExtensionNotLoaded as err:
+            except discord.ExtensionNotLoaded as err:
                 log.warning(err)
                 field += f'🟡 {util.extension_name(ext).capitalize()} was already unloaded\n'
 
-            except ExtensionNotFound as err:
+            except discord.ExtensionNotFound as err:
                 log.warning(err)
                 field += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
 
@@ -196,11 +194,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                 field += f'🟢 {util.extension_name(ext).capitalize()} sucessfully reloaded\n'
                 success += 1
 
-            except ExtensionNotLoaded as err:
+            except discord.ExtensionNotLoaded as err:
                 log.warning(err)
                 field += f'🟡 {util.extension_name(ext).capitalize()} wasn\'t loaded\n'
 
-            except ExtensionNotFound as err:
+            except discord.ExtensionNotFound as err:
                 log.warning(err)
                 field += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
 

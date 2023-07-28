@@ -1,18 +1,15 @@
 
-import asyncio
 import logging
 from os import getenv
 from os.path import basename
-import re as regex
 
-import dotenv
 import discord
-from discord.ext import commands
+import dotenv
 import pony.orm as pony
+from discord.ext import commands
 
 import lib.entities as entities
 import lib.util as util
-
 
 # ---------------------> Logging setup
 

@@ -6,8 +6,8 @@ from os import getenv
 from os.path import join
 from typing import Any, Generator, Tuple
 
-import dotenv
 import discord
+import dotenv
 from discord.ext import commands
 
 MIN_RELATIVE_OVERLAP = 0.5
