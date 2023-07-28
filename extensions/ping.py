@@ -28,7 +28,7 @@ log = logging.getLogger(name)
 dotenv.load_dotenv()
 
 
-# ---------------------> UI components
+# ---------------------> UI classes
 
 
 class SelectPingGroup(discord.ui.Select):
@@ -45,6 +45,7 @@ class SelectPingGroup(discord.ui.Select):
 
          # Only authorised users can interact
         if interaction.user != self.parent.authorised_user:
+            await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
             return
 
         await interaction.response.defer()
@@ -72,32 +73,11 @@ class VaguePingGroup(discord.ui.View):
 
         # Only authorised users can interact
         if interaction.user != self.authorised_user:
+            await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
             return
 
         await interaction.response.defer()
         self.resolved.set()
-
-class VerifySteamOverride(discord.ui.View):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.responded = asyncio.Event()
-        self.result = None
-
-    async def await_response(self) -> None:
-        await self.responded.wait()
-        self.disable_all_items()
-
-    @discord.ui.button(label='Override', style=discord.ButtonStyle.green, emoji='📝')
-    async def override(self, _, interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
-        self.result = True
-        self.responded.set()
-
-    @discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶')
-    async def abort(self, _, interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
-        self.result = False
-        self.responded.set()
 
 
 # ---------------------> Ping cog
@@ -293,12 +273,12 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) already has linked Steam account')
                 
                 # Prompt with override
-                view = VerifySteamOverride()
+                view = util.ContinueCancelMenu(ctx.author)
                 await dialog.set('You already have a linked Steam account. Do you want to override the old account, or keep it?', view=view)
-                await view.await_response()
+                result = await view.await_response()
 
                 # Cleanup
-                if not view.result:
+                if not result:
                     log.info(f'User `{ctx.author.name}` ({ctx.author.id}) aborted ping setup')
                     summary.set_field('Subscriptions', 'No subscriptions added.')
                     summary.set_header('User aborted ping setup')
