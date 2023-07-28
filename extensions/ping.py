@@ -198,7 +198,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
 
 
     @commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     async def ping(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -257,7 +257,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
 
     @ping.command(name='setup', description='Ping setup')
-    @util.default_command(param_filter=r'^(\d+)$', thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'^ *(\d+) *$', thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     async def setup(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -323,7 +323,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
 
     @ping.command(name='subscribe', description='Subscribe to a ping group')
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     async def subscribe(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -376,7 +376,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
 
     @ping.command(name='unsubscribe', description='Unsubscribe from a ping group')
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     async def unsubscribe(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -432,7 +432,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
 
     @ping.command(name='add', description='Add a ping group')
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     async def add(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -474,7 +474,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
     
     @ping.command(name='delete', description='Delete a ping group')
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     @util.dev_only()
     async def delete(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
