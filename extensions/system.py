@@ -259,3 +259,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             summary.set_field('Extensions', field)
 
         await ctx.reply(embed=summary.make_embed())
+
+    @commands.command(name='dump', description='Dumps bot log')
+    @util.default_command()
+    @util.dev_only()
+    async def dump(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> None:
+        with open('logs//root.log', 'br') as file:
+            await ctx.reply(file=discord.File(file, 'root.log'))
