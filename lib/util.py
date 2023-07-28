@@ -3,7 +3,7 @@ import re as regex
 from glob import iglob
 from os import getenv
 from os.path import join
-from typing import Generator, Tuple
+from typing import Any, Generator, Tuple
 
 import dotenv
 import discord
@@ -23,6 +23,21 @@ dotenv.load_dotenv()
 
 # ---------------------> Classes
 
+
+class SearchItem:
+    def __init__(self, item: Any, text: str) -> None:
+        self.item = item
+        self.text = text
+
+        self.sanitized         = None
+        self.overlap           = None
+        self.relative_overlap  = None
+        self.distance          = None
+        self.relative_distance = None
+        self.ranking           = None
+    
+    def __repr__(self) -> str:
+        return f'\nitem {self.item}\ntext {self.text}\nsanitized {self.sanitized if self.sanitized else "None"}\noverlap {self.overlap if self.overlap else "None"}\ndistance {self.distance if self.distance else "None"}\nranking {self.ranking if self.ranking else "None"}'
 
 class Dialog:
     def __init__(self, ctx: commands.Context) -> None:
@@ -70,7 +85,7 @@ class History:
 
     def add(self, summary: Summary) -> None:
         self.history.append(summary) # Add to history
-        self.history = self.history[:10]         # Trim history
+        self.history = self.history[-10:] # Trim history
 
     def last(self) -> Summary | None:
         if len(self.history) == 0:
@@ -110,36 +125,50 @@ history = History()
 # ---------------------> Wrappers
 
 
-# Wraps around commands to split args into flags and params.
-#   - incoming func MUST follow async (self, ctx, flags, params) -> Any
+# Wraps around commands to split args into flags and params. Also gives summary if summarized
+#   - incoming func MUST follow async (self, ctx, flags, vars, params) -> Any
 #   - outgoing func follows async (self, ctx, *args, **kwargs) -> Any
-#   - decorator should be placed below @bot.command() decorator
+#   - decorator Must be placed below @bot.command() decorator
 
-def default_command(param_filter: str | None = None, thesaurus: dict[str, str] = {}):
+def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = {'q': 'quiet', 'v': 'verbose'}):
     def wrapper(func):
-        async def wrapped(self, ctx, *args, **_):
+        async def wrapped(self, ctx, *, args: str = '', **_):
+            SHORT_VAR_FILTER = r'-- ?([^ ]+) ?= ?([^ ]+)'
+            LONG_VAR_FILTER = r'-- ?([^ ]+) ?= ?["“](.+)["“]'
+            FLAG_FILTER = r'-- ?([^ ]+)'
+            
             flags  = []
+            vars   = {}
             params = []
 
-            for arg in args:
+            # Filter out vars
+            raw_vars = regex.findall(LONG_VAR_FILTER, args)
+            args = regex.sub(LONG_VAR_FILTER, '', args)
+            raw_vars.extend(regex.findall(SHORT_VAR_FILTER, args))
+            args = regex.sub(SHORT_VAR_FILTER, '', args)
 
-                # Parse flags
-                if arg.startswith('-'):
-                    flag = arg[1:]
-                    if flag in thesaurus.keys():
-                        flag = thesaurus[flag]
-                    flags.append(flag)
-
-                # Parse params
+            for var in raw_vars:
+                key, value = var
+                if key in thesaurus:
+                    vars[thesaurus[key]] = value
                 else:
-                    params.append(arg)
+                    vars[key] = value
+
+            # Filter out flags
+            raw_flags = regex.findall(FLAG_FILTER, args)
+            args = regex.sub(FLAG_FILTER, '', args)
+
+            for flag in raw_flags:
+                if flag in thesaurus:
+                    flags.append(thesaurus[flag])
+                else:
+                    flags.append(flag)
             
-            # Filter params
-            if param_filter:
-                params = regex.findall(param_filter, ' '.join(params))
+            # Filter parameters
+            params = regex.findall(param_filter, args)
 
             # Call function
-            return_value = await func(self, ctx, flags, params)
+            return_value = await func(self, ctx, flags, vars, params)
 
             # Give summary
             if hasattr(func, 'summarized'):
@@ -155,10 +184,10 @@ def default_command(param_filter: str | None = None, thesaurus: dict[str, str] =
         return wrapped
     return wrapper
 
-# Wraps around commands to add summary to history
+# Wraps around commands to add summary to history. Also gives summary if default_command
 #   - incoming func MUST return Summary
 #   - outgoing func signature does not change
-#   - decorator should be placed below @bot.command() decorator
+#   - decorator MUST be placed below @bot.command() decorator
 
 def summarized():
     def wrapper(func):
@@ -181,8 +210,9 @@ def summarized():
     return wrapper
 
 # Wraps around commands to make it dev only
+#   - incoming func signature does not matter
 #   - outgoing func signature does not change
-#   - decorator should be placed below @bot.command() decorator
+#   - decorator MUST be placed below @bot.command() decorator
 
 def dev_only():
     def predicate(ctx):
@@ -228,7 +258,7 @@ def extension_name(extension_path: str) -> str:
 #   - Return type is an ordered list of dictionaries with the fields { name, sanitized, overlap, distance }
 #   - The return type is ordered first by the largest overlap, then by the smallest distance
 
-def fuzzy_search(options: list[str], query: str) -> Tuple[bool, list[dict]]:
+def fuzzy_search(options: list[SearchItem], query: str) -> Tuple[bool, list[SearchItem]]:
     def sanitize(input: str) -> str:
         output = input.lower()
         filter = regex.compile('[^\w ]')
@@ -282,35 +312,29 @@ def fuzzy_search(options: list[str], query: str) -> Tuple[bool, list[dict]]:
 
     # Sanitize input
     if len(options) < 1:
-        return False, []
-
-    # Sanitize options
-    results = [{
-     'name': option,
-     'sanitized': sanitize(option),
-     'overlap': None,
-     'relative_overlap': None,
-     'distance': None,
-     'relative_distance': None
-    } for option in options]
+        return True, []
 
     # Calculate scores
-    for result in results:
-        result['overlap'] = overlap(query, result['sanitized'])
-        result['relative_overlap'] = result['overlap'] / len(result['sanitized'])
-        result['distance'] = distance(query, result['sanitized'])
-        result['relative_distance'] = result['distance'] / len(result['sanitized'])
+    for option in options:
+        option.sanitized = sanitize(option.text)
+        option.overlap = overlap(query, option.sanitized)
+        option.relative_overlap = option.overlap / len(option.sanitized)
+        option.distance = distance(query, option.sanitized)
+        option.relative_distance = option.distance / len(option.sanitized)
 
-    # Sort results
-    results.sort(key=lambda result: result['distance'])
-    results.sort(key=lambda result: result['overlap'], reverse=True)
+    # Sort options
+    options.sort(key=lambda option: option.distance)
+    options.sort(key=lambda option: option.overlap, reverse=True)
 
-    # Check if results are conclusive
-    conclusive = results[0]['relative_overlap'] > MIN_RELATIVE_OVERLAP and                   \
-                 results[0]['relative_distance'] < MAX_RELATIVE_DISTANCE and (               \
-                     len(results) < 2 or                                                     \
-                     results[0]['overlap'] > results[1]['overlap'] + FUZZY_OVERLAP_MARGIN or \
-                     results[0]['distance'] < results[1]['distance'] - FUZZY_DISTANCE_MARGIN \
+    for ranking, option in enumerate(options, start=1):
+        option.ranking = ranking
+
+    # Check if options are conclusive
+    conclusive = options[0].relative_overlap > MIN_RELATIVE_OVERLAP and                \
+                 options[0].relative_distance < MAX_RELATIVE_DISTANCE and (            \
+                     len(options) < 2 or                                               \
+                     options[0].overlap > options[1].overlap + FUZZY_OVERLAP_MARGIN or \
+                     options[0].distance < options[1].distance - FUZZY_DISTANCE_MARGIN \
                  )
 
-    return conclusive, results
+    return conclusive, options
