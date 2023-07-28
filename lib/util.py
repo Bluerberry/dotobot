@@ -1,4 +1,5 @@
 
+import asyncio
 import re as regex
 from glob import iglob
 from os import getenv
@@ -21,7 +22,43 @@ FUZZY_DISTANCE_MARGIN = 3
 dotenv.load_dotenv()
 
 
-# ---------------------> Classes
+# ---------------------> UI Classes
+
+
+class ContinueCancelMenu(discord.ui.View):
+    def __init__(self, authorised_user: discord.User, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.authorised_user = authorised_user
+        self.responded = asyncio.Event()
+        self.result = None
+
+    async def await_response(self) -> bool:
+        await self.responded.wait()
+        self.disable_all_items()
+        return self.result
+
+    @discord.ui.button(label='Continue', style=discord.ButtonStyle.green, emoji='👍')
+    async def override(self, _, interaction: discord.Interaction) -> None:
+        if interaction.user != self.authorised_user:
+            await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        self.result = True
+        self.responded.set()
+
+    @discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶')
+    async def abort(self, _, interaction: discord.Interaction) -> None:
+        if interaction.user != self.authorised_user:
+            await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
+            return
+
+        await interaction.response.defer()
+        self.result = False
+        self.responded.set()
+
+
+# ---------------------> Util Classes
 
 
 class SearchItem:
