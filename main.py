@@ -27,7 +27,7 @@ with open('logConfig.json') as file:
 dotenv.load_dotenv()
 
 
-# ---------------------> Configure database
+# ---------------------> Database setup
 
 
 entities.db.bind(provider='postgres', user=getenv('DB_USER'), password=getenv('DB_PASSWORD'),
@@ -37,9 +37,10 @@ entities.db.generate_mapping(check_tables=True, create_tables=True)
 
 # ---------------------> Discord setup
 
-
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$', intents=intents)
+
+# ---------------------> Events
 
 @bot.event
 async def on_ready() -> None:
@@ -81,6 +82,16 @@ async def on_member_join(member: discord.User) -> None:
     # Send greetings
     await channel.send(f'Welcome {member.mention}, to {channel.guild.name}!')
 
+@bot.event
+async def on_application_command(ctx: commands.Context) -> None:
+    log.info(f'Command `{ctx.command}` invoked by `{ctx.author}` ({ctx.author.id}) in `{ctx.guild}` ({ctx.guild.id})')
+
+@bot.event
+async def on_application_command_error(ctx: commands.Context, error: commands.CommandError) -> None:
+    if isinstance(error, commands.errors.CommandNotFound):
+        return
+
+    log.error(error)
 
 # ---------------------> Main
 
