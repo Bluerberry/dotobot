@@ -1,5 +1,7 @@
 
 import logging
+import os
+import random
 from os.path import basename
 
 import discord
@@ -9,6 +11,7 @@ from discord.ext import commands
 
 import lib.entities as entities
 import lib.util as util
+
 
 # ---------------------> Logging setup
 
@@ -47,6 +50,76 @@ def teardown(bot: commands.Bot) -> None:
 class System(commands.Cog, name=name, description='Controls internal functionality'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+
+
+    # ---------------------> Events
+
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        with pony.db_session:
+
+            # Add all members from all guilds to database
+            for guild in self.bot.guilds:
+                for member in guild.members:
+                    if self.bot.application_id == member.id:
+                        continue
+
+                    if entities.User.exists(discord_id=member.id):
+                        log.debug(f"New user `{member.name}` ({member.id}) already known")
+                        continue
+
+                    entities.User(discord_id=member.id)
+                    log.info(f'New user `{member.name}` ({member.id}) added to the database')
+
+            # Set random status
+            await self.bot.change_presence(activity=random.choice([
+                    discord.Activity(type=discord.ActivityType.watching, name="paint dry"),
+                    discord.Activity(type=discord.ActivityType.watching, name="grass grow"),
+                    discord.Activity(type=discord.ActivityType.watching, name="yall"),
+                    discord.Activity(type=discord.ActivityType.playing, name="with myself"),
+                    discord.Activity(type=discord.ActivityType.playing, name="with your feelings"),
+                    discord.Activity(type=discord.ActivityType.playing, name="with matches"),
+                    discord.Activity(type=discord.ActivityType.listening, name="to the voices"),
+                    discord.Activity(type=discord.ActivityType.listening, name="to belly sounds"),
+                    discord.Activity(type=discord.ActivityType.listening, name="to static"),
+                    discord.Activity(type=discord.ActivityType.competing, name="in the paralympics"),
+                ]))
+
+            log.debug('Random status selected')
+        log.info(f'Succesful login as {self.bot.user}')
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.User) -> None:
+
+        # Find greet channel
+        channel = self.bot.get_channel(int(os.getenv('GREET_CHANNEL_ID')))
+        if channel == None:
+            log.error(f'Failed to load greet channel ({os.getenv("GREET_CHANNEL_ID")})')
+            return
+
+        # Check if new user is already known
+        with pony.db_session:
+            if entities.User.exists(discord_id=member.id):
+                log.debug(f"New user `{member.name}` ({member.id}) already known")
+                return
+
+            entities.User(discord_id=member.id)
+            log.info(f'New user `{member.name}` ({member.id}) added to the database')
+
+        # Send greetings
+        await channel.send(f'Welcome {member.mention}, to {channel.guild.name}!')
+
+    @commands.Cog.listener()
+    async def on_command(self, ctx: commands.Context) -> None:
+        log.info(f'Command `{ctx.command}` invoked by `{ctx.author}` ({ctx.author.id}) in `{ctx.guild}` ({ctx.guild.id})')
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
+        if isinstance(error, commands.errors.CommandNotFound):
+            return
+
+        log.error(error)
 
 
     # ---------------------> Commands
@@ -264,5 +337,5 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     @util.default_command()
     @util.dev_only()
     async def dump(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> None:
-        with open('logs//root.log', 'br') as file:
-            await ctx.reply(file=discord.File(file, 'root.log'))
+        with open('logs//main.log', 'br') as file:
+            await ctx.reply(file=discord.File(file, 'main.log'))
