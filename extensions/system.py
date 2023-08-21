@@ -34,6 +34,7 @@ def setup(bot: commands.Bot) -> None:
         if entities.Extension.exists(name=name):
             extension = entities.Extension.get(name=name)
             extension.active = True
+
         else:
             entities.Extension(name=name, active=True)
 
@@ -44,7 +45,7 @@ def teardown(bot: commands.Bot) -> None:
     with pony.db_session:
         extension = entities.Extension.get(name=name)
         extension.active = False
-    
+
     log.info(f'Extension has been destroyed: {name}')
 
 class System(commands.Cog, name=name, description='Controls internal functionality'):
@@ -54,17 +55,17 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     async def random_status(self) -> None:
         await self.bot.wait_until_ready()
         await self.bot.change_presence(activity=random.choice([
-                discord.Activity(type=discord.ActivityType.watching, name="paint dry"),
-                discord.Activity(type=discord.ActivityType.watching, name="grass grow"),
-                discord.Activity(type=discord.ActivityType.watching, name="yall"),
-                discord.Activity(type=discord.ActivityType.playing, name="with myself"),
-                discord.Activity(type=discord.ActivityType.playing, name="with your feelings"),
-                discord.Activity(type=discord.ActivityType.playing, name="with matches"),
-                discord.Activity(type=discord.ActivityType.listening, name="to the voices"),
-                discord.Activity(type=discord.ActivityType.listening, name="to belly sounds"),
-                discord.Activity(type=discord.ActivityType.listening, name="to static"),
-                discord.Activity(type=discord.ActivityType.competing, name="in the paralympics"),
-            ]))
+            discord.Activity(type=discord.ActivityType.watching, name='paint dry'),
+            discord.Activity(type=discord.ActivityType.watching, name='grass grow'),
+            discord.Activity(type=discord.ActivityType.watching, name='yall'),
+            discord.Activity(type=discord.ActivityType.playing, name='with myself'),
+            discord.Activity(type=discord.ActivityType.playing, name='with your feelings'),
+            discord.Activity(type=discord.ActivityType.playing, name='with matches'),
+            discord.Activity(type=discord.ActivityType.listening, name='to the voices'),
+            discord.Activity(type=discord.ActivityType.listening, name='to belly sounds'),
+            discord.Activity(type=discord.ActivityType.listening, name='to static'),
+            discord.Activity(type=discord.ActivityType.competing, name='in the paralympics'),
+        ]))
 
 
     # ---------------------> Events
@@ -81,7 +82,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                         continue
 
                     if entities.User.exists(discord_id=member.id):
-                        log.debug(f"New user `{member.name}` ({member.id}) already known")
+                        log.debug(f'New user `{member.name}` ({member.id}) already known')
                         continue
 
                     entities.User(discord_id=member.id)
@@ -90,7 +91,6 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         # Set random status
         await self.random_status()
         log.debug('Random status set')
-
         log.info(f'Succesful login as {self.bot.user}')
 
     @commands.Cog.listener()
@@ -105,7 +105,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         # Check if new user is already known
         with pony.db_session:
             if entities.User.exists(discord_id=member.id):
-                log.debug(f"New user `{member.name}` ({member.id}) already known")
+                log.debug(f'New user `{member.name}` ({member.id}) already known')
                 return
 
             entities.User(discord_id=member.id)
@@ -137,8 +137,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         reference = ctx.message.reference
         if reference == None:
             summary = util.history.last()
+            log.debug(f'Following last-command branch for {ctx.prefix}{ctx.command}')
+
         else:
             summary = util.history.search(reference.message_id)
+            log.debug(f'Following reference branch for {ctx.prefix}{ctx.command}')
 
         # Check if summary exists
         if summary == None:
@@ -156,17 +159,30 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     async def load(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
 
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
+
         # Prepare extension paths
-        if not params or 'all' in flags:
+        if 'all' in flags:
             params = list(util.yield_extensions(prefix_path=True))
-        else:
+            log.debug(f'Following --all branch for {ctx.prefix}{ctx.command}')
+
+        elif params:
             params = [util.extension_path(param) for param in params]
+            log.debug(f'Following parameter branch for {ctx.prefix}{ctx.command}')
+
+        else:
+            summary.set_header('No extensions or flags provided')
+            summary.set_field('Usage', f'`{ctx.prefix}status <extensions | --all> [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.error('No extensions or flags provided')
+            return summary
 
         # Load extensions
         field = ''
         success = 0
         for ext in params:
-
             try:
                 self.bot.load_extension(ext)
                 field += f'🟢 {util.extension_name(ext).capitalize()} sucessfully loaded\n'
@@ -188,9 +204,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         if (total := len(params)) == 0:
             summary.set_header('No extension have loaded')
             summary.set_field('Extensions', field)
+
         elif total == success:
             summary.set_header('All extensions have loaded')
             summary.set_field('Extensions', field)
+
         else:
             summary.set_header(f'{success} out of {total} extensions have loaded')
             summary.set_field('Extensions', field)
@@ -204,17 +222,30 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     async def unload(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
 
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
+
         # Prepare extension paths
-        if not params or 'all' in flags:
+        if 'all' in flags:
             params = list(self.bot.extensions.keys())
-        else:
+            log.debug(f'Following --all branch for {ctx.prefix}{ctx.command}')
+
+        elif params:
             params = [util.extension_path(param) for param in params]
+            log.debug(f'Following parameter branch for {ctx.prefix}{ctx.command}')
+
+        else:
+            summary.set_header('No extensions or flags provided')
+            summary.set_field('Usage', f'`{ctx.prefix}unload <extensions | --all> [--quiet | --verbose]`\nUse `{ctx.prefix}help reload` for more information.')
+            log.error('No extensions or flags provided')
+            return summary
 
         # Unload extensions
         field = ''
         success = 0
         for ext in params:
-
             if util.extension_name(ext) == 'system':
                 field += f'🔴 {util.extension_name(ext).capitalize()} shouldn\'t unload\n'
                 continue
@@ -240,9 +271,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         if (total := len(params)) == 0:
             summary.set_header('No extension have unloaded')
             summary.set_field('Extensions', field)
+
         elif total == success:
             summary.set_header('All extensions have unloaded')
             summary.set_field('Extensions', field)
+
         else:
             summary.set_header(f'{success} out of {total} extensions have unloaded')
             summary.set_field('Extensions', field)
@@ -253,20 +286,33 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all'})
     @util.summarized()
     @util.dev_only()
-    async def reload(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> discord.Embed:
+    async def reload(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
 
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
+
         # Prepare extension paths
-        if not params or 'all' in flags:
+        if 'all' in flags:
             params = list(self.bot.extensions.keys())
-        else:
+            log.debug(f'Following --all branch for {ctx.prefix}{ctx.command}')
+
+        elif params:
             params = [util.extension_path(param) for param in params]
+            log.debug(f'Following parameter branch for {ctx.prefix}{ctx.command}')
+
+        else:
+            summary.set_header('No extensions or flags provided')
+            summary.set_field('Usage', f'`{ctx.prefix}reload <extensions | --all> [--quiet | --verbose]`\nUse `{ctx.prefix}help reload` for more information.')
+            log.error('No extensions or flags provided')
+            return summary
 
         # Reload extensions
         field = ''
         success = 0
         for ext in params:
-
             try:
                 self.bot.reload_extension(ext)
                 field += f'🟢 {util.extension_name(ext).capitalize()} sucessfully reloaded\n'
@@ -288,9 +334,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         if (total := len(params)) == 0:
             summary.set_header('No extension have reloaded')
             summary.set_field('Extensions', field)
+
         elif total == success:
             summary.set_header('All extensions have reloaded')
             summary.set_field('Extensions', field)
+
         else:
             summary.set_header(f'{success} out of {total} extensions have reloaded')
             summary.set_field('Extensions', field)
@@ -299,26 +347,43 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
     @commands.command(name='status', description='Displays extension status')
     @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all'})
-    async def status(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> None:
+    @util.summarized()
+    async def status(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
         known  = list(util.yield_extensions(prefix_path=True))
         loaded = list(self.bot.extensions.keys())
 
-        # Prepare extension paths
-        if not params or 'all' in flags:
-            params = known
-        else:
-            params = [util.extension_path(param) for param in params]
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
 
-        # Create summary
+        # Prepare extension paths
+        if 'all' in flags:
+            params = known
+            log.debug(f'Following --all branch for {ctx.prefix}{ctx.command}')
+
+        elif params:
+            params = [util.extension_path(param) for param in params]
+            log.debug(f'Following parameter branch for {ctx.prefix}{ctx.command}')
+
+        else:
+            summary.set_header('No extensions or flags provided')
+            summary.set_field('Usage', f'`{ctx.prefix}status <extensions | --all> [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.error('No extensions or flags provided')
+            return summary
+
+        # Check status
         field = ''
         active = 0
         for ext in params:
             if ext not in known:
                 field += f'🟠 {util.extension_name(ext).capitalize()} doesn\'t exist\n'
+
             elif ext in loaded:
                 field += f'🟢 {util.extension_name(ext).capitalize()} is activated\n'
                 active += 1
+
             else:
                 field += f'🔴 {util.extension_name(ext).capitalize()} is deactivated\n'
 
@@ -330,12 +395,12 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         elif total == active:
             summary.set_header('All extensions are active')
             summary.set_field('Extensions', field)
-            
+
         else:
             summary.set_header(f'{active} out of {total} extensions are active')
             summary.set_field('Extensions', field)
 
-        await ctx.reply(embed=summary.make_embed())
+        return summary
 
     @commands.command(name='dump', description='Dumps bot log')
     @util.default_command()
@@ -344,34 +409,39 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         try:
             with open('logs//main.log', 'br') as file:
                 await ctx.reply(file=discord.File(file, 'main.log'))
+
         except Exception as err:
             await ctx.reply('Failed to dump log')
             log.error(err)
 
-    @commands.command(name='status', description='Sets bot status')
+    @commands.command(name='activity', description='Sets bot activity')
     @util.default_command(param_filter=r'^ *(.+?) *$', thesaurus={'r': 'random', 'rand': 'random', 'p': 'playing', 'play': 'playing', 'w': 'watching', 'watch': 'watching', 'l': 'listening', 'listen': 'listening', 'c': 'competing', 'comp': 'competing'})
     @util.summarized()
     @util.dev_only()
-    async def status(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
+    async def activity(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
 
-        # Check if random status is requested
+        # Check if activity is provided
+        if not params and 'random' not in flags:
+            summary.set_header('No activity or applicable flags provided')
+            summary.set_field('Usage', f'`{ctx.prefix}activity <activity | --all> [--playing | --watching | --listening | --competing] [--verbose | --quiet]`\nUse `{ctx.prefix}help {ctx.command}` for more information.')
+            log.error('No activity or flags provided')
+            return summary
+
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
+
+        # Check if random activity is requested
         if 'random' in flags:
+            log.debug(f'Following random branch for {ctx.prefix}{ctx.command}')
             await self.random_status()
-            summary.set_header('Random status selected')
-            log.info('Random status selected')
-
+            summary.set_header('Random activity selected')
+            log.info('Random activity selected')
             return summary
-        
-        # Check if status is provided
-        if not params:
-            summary.set_header('No status or flags provided')
-            summary.set_field('Usage', f'`{ctx.prefix}{ctx.command} <status> [flags]`\nUse `{ctx.prefix}help {ctx.command}` for more information.')
-            log.error('No status or flags provided')
 
-            return summary
-        
-        # Set status
+        # Set activity
         if 'competing' in flags:
             activity_type = discord.ActivityType.competing
         elif 'watching' in flags:
@@ -380,11 +450,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             activity_type = discord.ActivityType.listening
         else:
             activity_type = discord.ActivityType.playing
-        
+
         await self.bot.change_presence(activity=discord.Activity(type=activity_type, name=params[0]))
 
-        summary.set_header('New status set')
-        summary.set_field('New status', params[0])
-        log.info(f'Status set to `{params[0]}`')
-
+        summary.set_header('New activity set')
+        summary.set_field('New activity', params[0])
+        log.info(f'Activity set to `{params[0]}`')
         return summary

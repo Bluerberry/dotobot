@@ -41,9 +41,7 @@ if __name__ == '__main__':
 
     # Load all extensions
     with pony.db_session:
-        for ext in util.yield_extensions(prefix_path=True): 
-            # We use prefix_path=True bc getting the path is more expensive than its name
-            
+        for ext in util.yield_extensions(prefix_path=True):
             try:
 
                 # Skip extensions marked inactive
@@ -54,9 +52,10 @@ if __name__ == '__main__':
                         log.warning(f'Skipped loading inactive extension `{name}`')
                         continue
 
+                # Load extension
                 bot.load_extension(ext)
 
             except Exception as err:
                 log.error(err)
-    
+
     bot.run(os.getenv('DISCORD_TOKEN'))

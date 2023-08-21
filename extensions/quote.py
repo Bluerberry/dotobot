@@ -1,6 +1,6 @@
 
 import logging
-from os import getenv
+import os
 from os.path import basename
 
 import discord
@@ -33,6 +33,7 @@ def setup(bot: commands.Bot) -> None:
         if entities.Extension.exists(name=name):
             extension = entities.Extension.get(name=name)
             extension.active = True
+
         else:
             entities.Extension(name=name, active=True)
 
@@ -43,7 +44,7 @@ def teardown(bot: commands.Bot) -> None:
     with pony.db_session:
         extension = entities.Extension.get(name=name)
         extension.active = False
-    
+
     log.info(f'Extension has been destroyed: {name}')
 
 class Quote(commands.Cog, name=name, description='Manages the quote database'):
@@ -58,7 +59,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
             summary.send_on_return = False
             summary.set_header(f'Found {len(quotes)} quote{"s" if len(quotes) == 1 else ""}')
             await dialog.add('> ' + '\n> '.join([str(q) for q in quotes]))
-        
+
         else:
             summary.send_on_return = False
             summary.set_header(f'Found {len(quotes)} quotes')
@@ -108,35 +109,36 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
         # Check params
         if not params and 'all' not in flags and 'start' not in vars and 'stop' not in vars:
-            summary.set_header('Bad parameters given')
-            summary.set_field('ValueError', 'User provided bad parameters, nor the `--all` flag. Command usage dictates `$quote [quote IDs] (--start=[start ID]) (--stop=[stop ID]) --[flags]`')
-            log.warning('No parameters, flags, or apliccable variables given')
+            summary.set_header('No parameters or apliccable flags or variables given')
+            summary.set_field('Usage', f'`{ctx.prefix}quote <quote IDs | --all | [--start=<start ID>] [--stop=<stop ID>]> [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.warn(f'No parameters or applicable flags or variables given')
             await dialog.cleanup()
             return summary
-        
+
         try:
             if 'start' in vars:
                 vars['start'] = int(vars['start'])
             if 'stop' in vars:
                 vars['stop'] = int(vars['stop'])
-                
+
         except ValueError:
             variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
             summary.set_header('Bad variables given')
-            summary.set_field('ValueError', f'User provided non-numeric variables: {variables}. Command usage dictates `$quote [quote IDs] (--start=[start ID]) (--stop=[stop ID]) --[flags]`')
+            summary.set_field('ValueError', f'User provided non-numeric variables: {variables}')
+            summary.set_field('Usage', f'`{ctx.prefix}quote <quote IDs | --all | [--start=<start ID>] [--stop=<stop ID>]> [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
             log.warning(f'Bad variables given: {variables}. Expected numeric values')
             await dialog.cleanup()
             return summary
-        
+
         # Get quotes
         with pony.db_session:
             if 'all' in flags:
-                log.debug('Following --all branch for $quote command')
+                log.debug(f'Following --all branch for {ctx.prefix}{ctx.command}')
                 quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id))
 
             else:
                 if 'start' in vars or 'stop' in vars:
-                    log.debug('Following --start/stop branch for $quote command')
+                    log.debug(f'Following --start/stop branch for {ctx.prefix}{ctx.command}')
                     highest_id = self.get_highest_id(ctx.guild.id)
                     start, stop = 0, highest_id
 
@@ -146,9 +148,9 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                         stop = vars['stop'] if vars['stop'] >= 0 else highest_id + vars['stop']
 
                     quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and start <= quote.quote_id and quote.quote_id <= stop))
-                
+
                 else:
-                    log.debug('Following parameter branch for $quote command')
+                    log.debug(f'Following parameter branch for {ctx.prefix}{ctx.command}')
                     quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and str(quote.quote_id) in params))
 
         # Display quotes
@@ -166,16 +168,15 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
         # Check params
         if not params:
             summary.set_header('Bad parameters given')
-            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$quote add "[quote]" -[author] --[flags]`')
-            log.warning(f'Bad parameters given')
+            summary.set_field('Usage', f'`{ctx.prefix}quote add "<content>" - <author> [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.warn(f'Bad parameters given')
             await dialog.cleanup()
             return summary
-        
+
         if vars:
             variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
             log.warning(f'Redundant variables found: {variables}')
             summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
-
 
         # Add quote
         content, author = params[0]
@@ -184,7 +185,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
             next_id = 1 if prev_id is None else prev_id + 1
             db_quote = entities.Quote(quote_id=next_id, guild_id=ctx.guild.id, content=content, author=author)
 
-        log.info(f"A quote has been added; {str(db_quote)}")
+        log.info(f'A quote has been added; {str(db_quote)}')
         summary.set_header('Quote sucessfully added')
         summary.set_field(f'Quote', str(db_quote))
         await dialog.cleanup()
@@ -203,26 +204,25 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
             log.warning(f'Redundant parameters found: {parameters}')
             summary.set_field('Redundant parameters', f'This function does not accept parameters, yet it found these: {parameters}.')
 
-
         # Get quotes
         with pony.db_session:
             if 'content' in vars and 'author' in vars:
-                log.debug('Following --content/author branch in $quote search command')
+                log.debug(f'Following --content/author branch for {ctx.prefix}{ctx.command}')
 
                 if 'exact' in flags:
-                    log.debug('Following --exact branch in %quote search command')
+                    log.debug(f'Following --exact branch for {ctx.prefix}{ctx.command}')
                     quotes = list(entities.Quote.select(
                         lambda quote: quote.guild_id == ctx.guild.id and quote.content == vars['content'] and quote.author == vars['author']
                     ))
-                    
+
                 elif 'contains' in flags:
-                    log.debug('Following --contains branch in %quote search command')
+                    log.debug(f'Following --contains branch for {ctx.prefix}{ctx.command}')
                     quotes = list(entities.Quote.select(
                         lambda quote: quote.guild_id == ctx.guild.id and vars['content'] in quote.content and vars['author'] in quote.author
                     ))
-                
+
                 else: # Fuzzy search is default
-                    log.debug('Following --fuzzy branch in %quote search command')
+                    log.debug(f'Following --fuzzy branch for {ctx.prefix}{ctx.command}')
                     quotes = entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id)
                     options = [util.SearchItem(quote, quote.content) for quote in quotes]
                     _, results = util.fuzzy_search(options, vars['content'])
@@ -235,59 +235,59 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                             if author_result.item == content_result.item:
                                 content_result.ranking += author_result.ranking
                                 break
-                    
+
                     # Grab top 10 quotes
                     results.sort(key=lambda result: result.ranking)
                     quotes = [item.item for item in results[:10]]
-            
+
             elif 'content' in vars:
-                log.debug('Following --content branch in %quote search command')
+                log.debug(f'Following --content branch for {ctx.prefix}{ctx.command}')
 
                 if 'exact' in flags:
-                    log.debug('Following --exact branch in %quote search command')
+                    log.debug(f'Following --exact branch for {ctx.prefix}{ctx.command}')
                     quotes = list(entities.Quote.select(
                         lambda quote: quote.guild_id == ctx.guild.id and quote.content == vars['content']
                     ))
-                    
+
                 elif 'contains' in flags:
-                    log.debug('Following --contains branch in %quote search command')
+                    log.debug(f'Following --contains branch for {ctx.prefix}{ctx.command}')
                     quotes = list(entities.Quote.select(
                         lambda quote: quote.guild_id == ctx.guild.id and vars['content'] in quote.content
                     ))
-                
+
                 else: # Fuzzy search is default
-                    log.debug('Following --fuzzy branch in %quote search command')
+                    log.debug(f'Following --fuzzy branch for {ctx.prefix}{ctx.command}')
                     quotes = entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id)
                     options = [util.SearchItem(quote, quote.content) for quote in quotes]
                     _, results = util.fuzzy_search(options, vars['content'])
                     quotes = [item.item for item in results[:10]]
 
             elif 'author' in vars:
-                log.debug('Following --author branch in %quote search command')
+                log.debug(f'Following --author branch for {ctx.prefix}{ctx.command}')
 
                 if 'exact' in flags:
-                    log.debug('Following --exact branch in %quote search command')
+                    log.debug(f'Following --exact branch for {ctx.prefix}{ctx.command}')
                     quotes = list(entities.Quote.select(
                         lambda quote: quote.guild_id == ctx.guild.id and quote.author == vars['author']
                     ))
-                    
+
                 elif 'contains' in flags:
-                    log.debug('Following --contains branch in %quote search command')
+                    log.debug(f'Following --contains branch for {ctx.prefix}{ctx.command}')
                     quotes = list(entities.Quote.select(
                         lambda quote: quote.guild_id == ctx.guild.id and vars['author'] in quote.author
                     ))
-                
+
                 else: # Fuzzy search is default
-                    log.debug('Following --fuzzy branch in %quote search command')
+                    log.debug(f'Following --fuzzy branch for {ctx.prefix}{ctx.command}')
                     quotes = entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id)
                     options = [util.SearchItem(quote, quote.author) for quote in quotes]
                     _, results = util.fuzzy_search(options, vars['author'])
                     quotes = [result.item for result in results[:10]]
 
             else:
-                summary.set_header('Bad variables given')
-                summary.set_field('ValueError', f'User provided bad variables. Command usage dictates `$quote search (--content="[content]") (--author="[author]") --[flags]`')
-                log.warning(f'Bad variables given')
+                summary.set_header('Bad parameters given')
+                summary.set_field('Usage', f'`{ctx.prefix}quote search [--content=<content>] [--author=<author>] [--exact | --contains | --fuzy] [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+                log.warn(f'Bad parameters given')
                 await dialog.cleanup()
                 return summary
 
@@ -298,7 +298,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
     @quote.command(name='remove', aliases=['del', 'delete'], description='Removes quotes')
     @commands.has_permissions(administrator=True)
-    @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all'})
+    @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'f': 'force'})
     @util.summarized()
     async def remove(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -306,40 +306,40 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
         # Check params
         if not params and 'all' not in flags:
-            summary.set_header('Bad parameters given')
-            summary.set_field('ValueError', f'User provided bad parameters, nor the `--all` flag. Command usage dictates `$quote remove [quote IDs] --[flags]`')
-            log.warning(f'Bad parameters given')
+            summary.set_header('No parameters or applicable flags given')
+            summary.set_field('Usage', f'`{ctx.prefix}quote remove <quote IDS | --all> [--force] [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.warn(f'Bad parameters given')
             await dialog.cleanup()
             return summary
-    
-        if 'all' in flags and str(ctx.author.id) not in getenv('DEVELOPER_IDS'):
+
+        if 'all' in flags and str(ctx.author.id) not in os.getenv('DEVELOPER_IDS'):
             summary.set_header('Only developers can bulk delete')
             summary.set_field('Aborted', f'User `{ctx.author.name}` ({ctx.author.id}) is not a developer, thus can\'t bulk delete.')
             log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) is not a developer')
             await dialog.cleanup()
             return summary
-        
+
         if vars:
             variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
             log.warning(f'Redundant variables found: {variables}')
             summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
-        
+
         # Get quotes
         with pony.db_session:
             if 'all' in flags:
-                log.debug('Following --all branch in %quote search command')
+                log.debug(f'Following --all branch for {ctx.prefix}{ctx.command}')
                 quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id))
-            
+
             else:
-                log.debug('Following parameter branch in %quote search command')
+                log.debug(f'Following parameter branch for {ctx.prefix}{ctx.command}')
                 quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and str(quote.quote_id) in params))
-        
+
             # Check query
             if not quotes:
                 if 'all' in flags:
                     summary.set_field('Empty database', 'There are no quotes in the database registered to this server.')
                     log.warning(f'There are no quotes in the database registered to this server ({ctx.guild.id})')
-                
+
                 else:
                     summary.set_field('Invalid parameters', f'The given quote IDs ({" ,".join(params)}) don\'t exist!')
                     log.warning(f'The given quote IDs: {" ,".join(params)} don\'t exist, and can\'t be removed from the database')
@@ -349,8 +349,8 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                 return summary
 
             # Bulk delete
-            if 'all' in flags or len(quotes) >= 10:
-                log.debug('Following bulk delete branch in %quote search command')
+            if ('all' in flags or len(quotes) >= 10) and 'force' not in flags:
+                log.debug(f'Following bulk delete branch for {ctx.prefix}{ctx.command}')
 
                 # Verify bulk delete
                 view = util.ContinueCancelMenu(ctx.author)
@@ -372,13 +372,13 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                 msg += f'Quote {str(quote)}\n'
                 log.info(f'Quote {quote.quote_id} from guild {quote.guild_id} has been removed')
                 quote.delete()
-        
+
         if count < 20:
             summary.set_field('Removed quotes', msg)
         summary.set_header(f'Sucessfully removed {count} quote{"" if count == 1 else "s"}')
         await dialog.cleanup()
         return summary
-            
+
     @quote.command(name='edit', description='Edits quotes')
     @commands.has_permissions(administrator=True)
     @util.default_command(param_filter=r'^ *(\d+) *$')
@@ -389,12 +389,12 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
         # Check params
         if not params or 'content' not in vars and 'author' not in vars:
-            summary.set_header('Bad parameters given')
-            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$quote edit [quote ID] (--content="[content]") (--author="[author]") --[flags]`')
-            log.warning(f'Bad parameters given')
+            summary.set_header('No parameters or applicable flags given')
+            summary.set_field('Usage', f'`{ctx.prefix}quote edit <quote ID> [--content=<new content>] [--author=<new author>] [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.warn(f'Bad parameters given')
             await dialog.cleanup()
             return summary
-        
+
         with pony.db_session:
 
             # Get quote
@@ -405,7 +405,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                 log.warning(f'Quote not found')
                 await dialog.cleanup()
                 return summary
-                            
+
             # Edit content
             if 'content' in vars:
                 db_quote.content = vars['content']

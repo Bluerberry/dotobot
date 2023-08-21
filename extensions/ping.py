@@ -1,8 +1,8 @@
 
 import asyncio
 import logging
+import os
 import random
-from os import getenv
 from os.path import basename
 
 import discord
@@ -13,6 +13,7 @@ from discord.ext import commands
 import lib.entities as entities
 import lib.steam as steam
 import lib.util as util
+
 
 # ---------------------> Logging setup
 
@@ -33,13 +34,13 @@ dotenv.load_dotenv()
 class SelectPingGroup(discord.ui.Select):
     def __init__(self, parent: discord.ui.View, options: list[entities.PingGroup], *args, **kwargs) -> None:
         super().__init__(
-            placeholder='Select a ping group', 
-            options=[discord.SelectOption(label=option.name, value=option) for option in options], 
+            placeholder='Select a ping group',
+            options=[discord.SelectOption(label=option.name, value=option) for option in options],
             *args, **kwargs
         )
 
         self.parent = parent
-    
+
     async def callback(self, interaction: discord.Interaction) -> None:
 
          # Only authorised users can interact
@@ -61,12 +62,12 @@ class VaguePingGroup(discord.ui.View):
         # Create select menu
         select = SelectPingGroup(self, options)
         self.add_item(select)
-    
+
     async def await_resolution(self) -> None | entities.PingGroup:
         await self.resolved.wait()
         self.disable_all_items()
         return self.result
-    
+
     @discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶', row=1)
     async def abort(self, _, interaction: discord.Interaction) -> None:
 
@@ -87,6 +88,7 @@ def setup(bot: commands.Bot) -> None:
         if entities.Extension.exists(name=name):
             extension = entities.Extension.get(name=name)
             extension.active = True
+
         else:
             entities.Extension(name=name, active=True)
 
@@ -97,15 +99,15 @@ def teardown(bot: commands.Bot) -> None:
     with pony.db_session:
         extension = entities.Extension.get(name=name)
         extension.active = False
-    
+
     log.info(f'Extension has been destroyed: {name}')
 
 class Ping(commands.Cog, name=name, description='Better ping utility'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.steam = steam.Client(getenv('STEAM_TOKEN'))
+        self.steam = steam.Client(os.getenv('STEAM_TOKEN'))
 
-    async def update_pings(self, summary: util.Summary | None = None) -> None:        
+    async def update_pings(self, summary: util.Summary | None = None) -> None:
         with pony.db_session:
 
             # Fetch new Steam data and update ping groups
@@ -123,6 +125,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
                     if not entities.PingGroup.exists(steam_id=game.id):
                         try:
                             game.unlazify()
+
                         except steam.errors.GameNotFound:
                             log.warning(f'No game with id ({game.id}) could be found in the Steam store')
                             continue
@@ -132,6 +135,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
                             entities.PingGroup(name=game.name, steam_id=game.id)
                             log.info(f'Created ping group `{game.name}` ({game.id})')
                             new += 1
+
                         except pony.core.CacheIndexError:
                             log.warn(f'Failed to create ping group with duplicate name or SteamID')
 
@@ -185,17 +189,22 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
         # Check params
         if not params:
-            summary.set_header('Bad parameters Given')
-            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$ping [ping group] --[flags]`')
-            log.warn(f'Bad parameters given')
+            summary.set_header('No parameters given')
+            summary.set_field('Usage', f'`{ctx.prefix}ping <ping group> [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.warn(f'No parameters given')
             await dialog.cleanup()
             return summary
+
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
 
         # Update ping groups
         if 'quiet' not in flags:
             await dialog.set('DoSsing the Steam API...')
         await self.update_pings(summary)
-       
+
         with pony.db_session:
 
             # Find ping group
@@ -244,11 +253,16 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
         # Check params
         if not params:
-            summary.set_header('Bad parameters Given')
-            summary.set_field('ValueError', f'User provided bad parameters. Command usage dictates `$ping setup [Steam ID64] --[flags]`')
-            log.warn(f'Bad parameters given')
+            summary.set_header('No parameters given')
+            summary.set_field('Usage', f'`{ctx.prefix}ping setup <steam ID64> [--force] [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.warn(f'No parameters given')
             await dialog.cleanup()
             return summary
+
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
 
         # Validate SteamID
         try:
@@ -270,7 +284,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
             # Check if there already is a SteamID registered to this user
             if db_user.steam_id and 'force' not in flags:
                 log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) already has linked Steam account')
-                
+
                 # Prompt with override
                 view = util.ContinueCancelMenu(ctx.author)
                 await dialog.set('You already have a linked Steam account. Do you want to override the old account, or keep it?', view=view)
@@ -283,7 +297,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
                     summary.set_header('User aborted ping setup')
                     await dialog.cleanup()
                     return summary
-                
+
             # Link Steam account
             db_user.steam_id = steam_user.id64
             if 'quiet' not in flags:
@@ -295,10 +309,10 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
             summary.set_field('New Subscriptions', 'No subscriptions added, Steam profile is set to private. When you set your profile to public you will be automatically subscribed to all games in your library.')
         else:
             summary.set_field('New Subscriptions', 'Steam library added to subscribed ping groups!')
-        summary.set_header(f'Sucessfully linked Steam account `{steam_user.name}` to user `{ctx.author.name}`')
-        log.info(f"Succesfully linked Steam account `{steam_user.name}` ({steam_user.id64}) to user `{ctx.author.name}` ({ctx.author.id})")
 
-        await dialog.cleanup()            
+        summary.set_header(f'Sucessfully linked Steam account `{steam_user.name}` to user `{ctx.author.name}`')
+        log.info(f'Succesfully linked Steam account `{steam_user.name}` ({steam_user.id64}) to user `{ctx.author.name}` ({ctx.author.id})')
+        await dialog.cleanup()
         return summary
 
     @ping.command(name='subscribe', description='Subscribe to a ping group')
@@ -310,17 +324,22 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
         # Check params
         if not params:
-            log.error(f'No parameters given')
             summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [ping group] --[flags]`')
+            summary.set_field('Usage', f'`{ctx.prefix}ping subscribe <ping group> [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.warn(f'No parameters given')
             await dialog.cleanup()
             return summary
+
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
 
         # Update ping groups
         if 'quiet' not in flags:
             await dialog.set('DoSsing the Steam API...')
         await self.update_pings(summary)
-        
+
         # Subscribe to ping group
         with pony.db_session:
 
@@ -363,17 +382,22 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
         # Check params
         if not params:
-            log.error(f'No parameters given')
             summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping subscribe [query] --[flags]`')
+            summary.set_field('Usage', f'`{ctx.prefix}ping unsubscribe <ping group> [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.warn(f'No parameters given')
             await dialog.cleanup()
             return summary
+
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
 
         # Update ping groups
         if 'quiet' not in flags:
             await dialog.set('DoSsing the Steam API...')
         await self.update_pings(summary)
-        
+
         # Subscribe to ping group
         with pony.db_session:
 
@@ -384,7 +408,6 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
             if not db_pingGroup:
                 await dialog.cleanup()
                 return summary
-            
 
             # Check if user is manually subscribed
             if db_pingGroup.id in db_user.whitelisted_pings:
@@ -405,8 +428,8 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
             # Check if user was subscribed in the first place
             if not unsubscribed:
                 log.warning(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) was never subscribed ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-                summary.header(f'User was never subscribed to `{db_pingGroup.name}`')                
-            
+                summary.header(f'User was never subscribed to `{db_pingGroup.name}`')
+
             await dialog.cleanup()
             return summary
 
@@ -424,7 +447,12 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
             summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] --[flags]`')
             await dialog.cleanup()
             return summary
-        
+
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
+
         # Update pings
         if 'quiet' not in flags:
             await dialog.set('DoSsing the Steam API...')
@@ -447,11 +475,11 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
             pingGroup = entities.PingGroup(name=params[0])
             pony.commit()
             log.info(f'Created new ping group `{pingGroup.name}` ({pingGroup.id}) at the request of user `{ctx.author.name}` ({ctx.author.id})')
-    
+
         summary.set_header(f'Successfully created ping group `{pingGroup.name}`')
         await dialog.cleanup()
         return summary
-    
+
     @ping.command(name='delete', description='Delete a ping group')
     @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
@@ -462,19 +490,24 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
         # Check params
         if not params:
-            log.error(f'No parameters given')
             summary.set_header('No parameters given')
-            summary.set_field('ValueError', 'User provided no parameters, while command usage dictates `$ping add [name] --[flags]`')
+            summary.set_field('Usage', f'`{ctx.prefix}ping add <ping group> [--quiet | --verbose]`\nUse `{ctx.prefix}help status` for more information.')
+            log.warn(f'No parameters given')
             await dialog.cleanup()
             return summary
-        
+
+        if vars:
+            variables = ', '.join([f'{key} = "{value}"' for key, value in vars.items()])
+            log.warning(f'Redundant variables found: {variables}')
+            summary.set_field('Redundant variables', f'This function does not accept variables, yet it found these: {variables}.')
+
         # Update pings
         if 'quiet' not in flags:
             await dialog.set('DoSsing the Steam API...')
         await self.update_pings(summary)
 
         with pony.db_session:
-            
+
             # Find ping group
             db_pingGroup = await self.find_pinggroup(params[0], dialog, summary)
             if not db_pingGroup:
@@ -486,7 +519,6 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
                 summary.set_header('Failed to delete implicit ping group')
                 summary.set_field('ImplicitPingGroupError', f'Ping group `{db_pingGroup.name}` is implicitly created from a Steam library, and thus cannot be deleted.')
                 log.warn(f'Ping group `{db_pingGroup.name}` is implicitly created from a Steam library, and thus cannot be deleted.')
-
                 await dialog.cleanup()
                 return summary
 
@@ -494,12 +526,12 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
             for db_user in pony.select(db_user for db_user in entities.User):
                 if db_pingGroup.id in db_user.whitelisted_pings:
                     db_user.whitelisted_pings.remove(db_pingGroup.id)
+
                 if db_pingGroup.id in db_user.blacklisted_pings:
                     db_user.blacklisted_pings.remove(db_pingGroup.id)
 
             log.info(f'Successfully deleted ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-            summary.set_header(f'Successfully deleted ping group `{db_pingGroup.name}`')            
+            summary.set_header(f'Successfully deleted ping group `{db_pingGroup.name}`')
             db_pingGroup.delete()
-                
             await dialog.cleanup()
             return summary
