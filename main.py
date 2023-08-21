@@ -3,6 +3,7 @@ import json
 import logging
 import logging.config
 from os import getenv
+import random
 
 import dotenv
 import discord
@@ -44,9 +45,9 @@ bot = commands.Bot(command_prefix='$', intents=intents)
 
 @bot.event
 async def on_ready() -> None:
-    
-    # Add all members from all guilds to database
     with pony.db_session:
+
+        # Add all members from all guilds to database
         for guild in bot.guilds:
             for member in guild.members:
                 if bot.application_id == member.id:
@@ -58,7 +59,22 @@ async def on_ready() -> None:
 
                 entities.User(discord_id=member.id)
                 log.info(f'New user `{member.name}` ({member.id}) added to the database')
-    
+        
+        # Set random status
+        await bot.change_presence(activity=random.choice([
+                discord.Activity(type=discord.ActivityType.watching, name="paint dry"),
+                discord.Activity(type=discord.ActivityType.watching, name="grass grow"),
+                discord.Activity(type=discord.ActivityType.watching, name="yall"),
+                discord.Activity(type=discord.ActivityType.playing, name="with myself"),
+                discord.Activity(type=discord.ActivityType.playing, name="with your feelings"),
+                discord.Activity(type=discord.ActivityType.playing, name="with matches"),
+                discord.Activity(type=discord.ActivityType.listening, name="to the voices"),
+                discord.Activity(type=discord.ActivityType.listening, name="to belly sounds"),
+                discord.Activity(type=discord.ActivityType.listening, name="to static"),
+                discord.Activity(type=discord.ActivityType.competing, name="in the paralympics"),
+            ]))
+           
+        log.debug('Random status selected')
     log.info(f'Succesful login as {bot.user}')
 
 @bot.event
