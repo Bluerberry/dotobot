@@ -51,15 +51,30 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
+    async def random_status(self) -> None:
+        await self.bot.wait_until_ready()
+        await self.bot.change_presence(activity=random.choice([
+                discord.Activity(type=discord.ActivityType.watching, name="paint dry"),
+                discord.Activity(type=discord.ActivityType.watching, name="grass grow"),
+                discord.Activity(type=discord.ActivityType.watching, name="yall"),
+                discord.Activity(type=discord.ActivityType.playing, name="with myself"),
+                discord.Activity(type=discord.ActivityType.playing, name="with your feelings"),
+                discord.Activity(type=discord.ActivityType.playing, name="with matches"),
+                discord.Activity(type=discord.ActivityType.listening, name="to the voices"),
+                discord.Activity(type=discord.ActivityType.listening, name="to belly sounds"),
+                discord.Activity(type=discord.ActivityType.listening, name="to static"),
+                discord.Activity(type=discord.ActivityType.competing, name="in the paralympics"),
+            ]))
+
 
     # ---------------------> Events
 
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
-        with pony.db_session:
 
-            # Add all members from all guilds to database
+        # Add all members from all guilds to database
+        with pony.db_session:
             for guild in self.bot.guilds:
                 for member in guild.members:
                     if self.bot.application_id == member.id:
@@ -72,21 +87,10 @@ class System(commands.Cog, name=name, description='Controls internal functionali
                     entities.User(discord_id=member.id)
                     log.info(f'New user `{member.name}` ({member.id}) added to the database')
 
-            # Set random status
-            await self.bot.change_presence(activity=random.choice([
-                    discord.Activity(type=discord.ActivityType.watching, name="paint dry"),
-                    discord.Activity(type=discord.ActivityType.watching, name="grass grow"),
-                    discord.Activity(type=discord.ActivityType.watching, name="yall"),
-                    discord.Activity(type=discord.ActivityType.playing, name="with myself"),
-                    discord.Activity(type=discord.ActivityType.playing, name="with your feelings"),
-                    discord.Activity(type=discord.ActivityType.playing, name="with matches"),
-                    discord.Activity(type=discord.ActivityType.listening, name="to the voices"),
-                    discord.Activity(type=discord.ActivityType.listening, name="to belly sounds"),
-                    discord.Activity(type=discord.ActivityType.listening, name="to static"),
-                    discord.Activity(type=discord.ActivityType.competing, name="in the paralympics"),
-                ]))
+        # Set random status
+        await self.random_status()
+        log.debug('Random status set')
 
-            log.debug('Random status selected')
         log.info(f'Succesful login as {self.bot.user}')
 
     @commands.Cog.listener()
@@ -337,5 +341,49 @@ class System(commands.Cog, name=name, description='Controls internal functionali
     @util.default_command()
     @util.dev_only()
     async def dump(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> None:
-        with open('logs//main.log', 'br') as file:
-            await ctx.reply(file=discord.File(file, 'main.log'))
+        try:
+            with open('logs//main.log', 'br') as file:
+                await ctx.reply(file=discord.File(file, 'main.log'))
+        except Exception as err:
+            log.error(err)
+
+    @commands.command(name='status', description='Sets bot status')
+    @util.default_command(param_filter=r'^ *(.+?) *$', thesaurus={'q': 'quiet', 'v': 'verbose', 'r': 'random', 'p': 'playing', 'w': 'watching', 'l': 'listening', 'c': 'competing'})
+    @util.summarized()
+    @util.dev_only()
+    async def status(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+
+        # Check if random status is requested
+        if 'random' in flags:
+            await self.random_status()
+            summary.set_header('Random status selected')
+            log.info('Random status selected')
+
+            return summary
+        
+        # Check if status is provided
+        if not params:
+            summary.set_header('No status or flags provided')
+            summary.set_field('Usage', f'`{ctx.prefix}{ctx.command} <status> [flags]`\nUse `{ctx.prefix}help {ctx.command}` for more information.')
+            log.error('No status or flags provided')
+
+            return summary
+        
+        # Set status
+        if 'competing' in flags:
+            activity_type = discord.ActivityType.competing
+        elif 'watching' in flags:
+            activity_type = discord.ActivityType.watching
+        elif 'listening' in flags:
+            activity_type = discord.ActivityType.listening
+        else:
+            activity_type = discord.ActivityType.playing
+        
+        await self.bot.change_presence(activity=discord.Activity(type=activity_type, name=params[0]))
+
+        summary.set_header('New status set')
+        summary.set_field('New status', params[0])
+        log.info(f'Status set to `{params[0]}`')
+
+        return summary
