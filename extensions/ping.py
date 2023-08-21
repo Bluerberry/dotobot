@@ -5,15 +5,14 @@ import random
 from os import getenv
 from os.path import basename
 
-import dotenv
 import discord
-from discord.ext import commands
+import dotenv
 import pony.orm as pony
+from discord.ext import commands
 
-import lib.util as util
-import lib.steam as steam
 import lib.entities as entities
-
+import lib.steam as steam
+import lib.util as util
 
 # ---------------------> Logging setup
 
@@ -28,7 +27,7 @@ log = logging.getLogger(name)
 dotenv.load_dotenv()
 
 
-# ---------------------> UI components
+# ---------------------> UI classes
 
 
 class SelectPingGroup(discord.ui.Select):
@@ -45,6 +44,7 @@ class SelectPingGroup(discord.ui.Select):
 
          # Only authorised users can interact
         if interaction.user != self.parent.authorised_user:
+            await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
             return
 
         await interaction.response.defer()
@@ -72,32 +72,11 @@ class VaguePingGroup(discord.ui.View):
 
         # Only authorised users can interact
         if interaction.user != self.authorised_user:
+            await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
             return
 
         await interaction.response.defer()
         self.resolved.set()
-
-class VerifySteamOverride(discord.ui.View):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.responded = asyncio.Event()
-        self.result = None
-
-    async def await_response(self) -> None:
-        await self.responded.wait()
-        self.disable_all_items()
-
-    @discord.ui.button(label='Override', style=discord.ButtonStyle.green, emoji='📝')
-    async def override(self, _, interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
-        self.result = True
-        self.responded.set()
-
-    @discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶')
-    async def abort(self, _, interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
-        self.result = False
-        self.responded.set()
 
 
 # ---------------------> Ping cog
@@ -121,7 +100,7 @@ def teardown(bot: commands.Bot) -> None:
     
     log.info(f'Extension has been destroyed: {name}')
 
-class Ping(commands.Cog, name = name, description = 'Better ping utility'):
+class Ping(commands.Cog, name=name, description='Better ping utility'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.steam = steam.Client(getenv('STEAM_TOKEN'))
@@ -198,7 +177,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
 
 
     @commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     async def ping(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -257,7 +236,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
 
     @ping.command(name='setup', description='Ping setup')
-    @util.default_command(param_filter=r'^(\d+)$', thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'^ *(\d+) *$', thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
     @util.summarized()
     async def setup(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -293,12 +272,12 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
                 log.debug(f'User `{ctx.author.name}` ({ctx.author.id}) already has linked Steam account')
                 
                 # Prompt with override
-                view = VerifySteamOverride()
+                view = util.ContinueCancelMenu(ctx.author)
                 await dialog.set('You already have a linked Steam account. Do you want to override the old account, or keep it?', view=view)
-                await view.await_response()
+                result = await view.await_response()
 
                 # Cleanup
-                if not view.result:
+                if not result:
                     log.info(f'User `{ctx.author.name}` ({ctx.author.id}) aborted ping setup')
                     summary.set_field('Subscriptions', 'No subscriptions added.')
                     summary.set_header('User aborted ping setup')
@@ -323,7 +302,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
 
     @ping.command(name='subscribe', description='Subscribe to a ping group')
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     async def subscribe(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -376,7 +355,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
 
     @ping.command(name='unsubscribe', description='Unsubscribe from a ping group')
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     async def unsubscribe(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -432,7 +411,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
             return summary
 
     @ping.command(name='add', description='Add a ping group')
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     async def add(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -474,7 +453,7 @@ class Ping(commands.Cog, name = name, description = 'Better ping utility'):
         return summary
     
     @ping.command(name='delete', description='Delete a ping group')
-    @util.default_command()
+    @util.default_command(param_filter=r'^ *(.+?) *$')
     @util.summarized()
     @util.dev_only()
     async def delete(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:

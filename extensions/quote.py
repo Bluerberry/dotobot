@@ -1,18 +1,15 @@
 
-import asyncio
 import logging
 from os import getenv
 from os.path import basename
-import re as regex
 
-import dotenv
 import discord
-from discord.ext import commands
+import dotenv
 import pony.orm as pony
+from discord.ext import commands
 
 import lib.entities as entities
 import lib.util as util
-
 
 # ---------------------> Logging setup
 
@@ -25,44 +22,6 @@ log = logging.getLogger(name)
 
 
 dotenv.load_dotenv()
-
-
-# ---------------------> UI components
-
-
-class VerifyBulkDelete(discord.ui.View):
-    def __init__(self, authorised_user: discord.User, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.authorised_user = authorised_user
-        self.responded = asyncio.Event()
-        self.result = None
-
-    async def await_response(self) -> bool:
-        await self.responded.wait()
-        self.disable_all_items()
-        return self.result
-
-    @discord.ui.button(label='Delete All', style=discord.ButtonStyle.red, emoji='🗑️')
-    async def override(self, _, interaction: discord.Interaction) -> None:
-        
-        # Only authorised users can interact
-        if interaction.user != self.authorised_user:
-            return
-
-        await interaction.response.defer()
-        self.result = True
-        self.responded.set()
-
-    @discord.ui.button(label='Abort', style=discord.ButtonStyle.gray, emoji='👶')
-    async def abort(self, _, interaction: discord.Interaction) -> None:
-        
-        # Only authorised users can interact
-        if interaction.user != self.authorised_user:
-            return
-
-        await interaction.response.defer()
-        self.result = False
-        self.responded.set()
 
 
 # ---------------------> Quote cog
@@ -104,7 +63,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
             summary.set_header(f'Found {len(quotes)} quotes')
             await self.mass_quote(dialog, quotes)
 
-    async def mass_quote(self, dialog: util.Dialog, quotes: list[entities.Quote]):
+    async def mass_quote(self, dialog: util.Dialog, quotes: list[entities.Quote]) -> None:
         start_id = quotes[0].quote_id
         block_count = 0
         msg = ''
@@ -393,12 +352,12 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                 log.debug('Following bulk delete branch in %quote search command')
 
                 # Verify bulk delete
-                view = VerifyBulkDelete(ctx.author)
+                view = util.ContinueCancelMenu(ctx.author)
                 log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) is about to delete {len(quotes)} quotes')
                 await dialog.set(f'You are about to delete {len(quotes)} quotes. Are you really fucking sure?', view=view)
-                await view.await_response()
+                result = await view.await_response()
 
-                if not view.result:
+                if not result:
                     summary.set_header('Bulk delete has been aborted')
                     summary.set_field('Aborted', f'User `{ctx.author.name}` ({ctx.author.id}) aborted bulk delete.')
                     log.info(f'User `{ctx.author.name}` ({ctx.author.id}) aborted bulk delete')

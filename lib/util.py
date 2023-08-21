@@ -1,12 +1,13 @@
 
+import asyncio
 import re as regex
 from glob import iglob
 from os import getenv
 from os.path import join
 from typing import Any, Generator, Tuple
 
-import dotenv
 import discord
+import dotenv
 from discord.ext import commands
 
 MIN_RELATIVE_OVERLAP = 0.5
@@ -21,7 +22,43 @@ FUZZY_DISTANCE_MARGIN = 3
 dotenv.load_dotenv()
 
 
-# ---------------------> Classes
+# ---------------------> UI Classes
+
+
+class ContinueCancelMenu(discord.ui.View):
+    def __init__(self, authorised_user: discord.User, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.authorised_user = authorised_user
+        self.responded = asyncio.Event()
+        self.result = None
+
+    async def await_response(self) -> bool:
+        await self.responded.wait()
+        self.disable_all_items()
+        return self.result
+
+    @discord.ui.button(label='Continue', style=discord.ButtonStyle.green, emoji='👍')
+    async def override(self, _, interaction: discord.Interaction) -> None:
+        if interaction.user != self.authorised_user:
+            await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        self.result = True
+        self.responded.set()
+
+    @discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶')
+    async def abort(self, _, interaction: discord.Interaction) -> None:
+        if interaction.user != self.authorised_user:
+            await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
+            return
+
+        await interaction.response.defer()
+        self.result = False
+        self.responded.set()
+
+
+# ---------------------> Util Classes
 
 
 class SearchItem:
@@ -36,9 +73,6 @@ class SearchItem:
         self.relative_distance = None
         self.ranking           = None
     
-    def __repr__(self) -> str:
-        return f'\nitem {self.item}\ntext {self.text}\nsanitized {self.sanitized if self.sanitized else "None"}\noverlap {self.overlap if self.overlap else "None"}\ndistance {self.distance if self.distance else "None"}\nranking {self.ranking if self.ranking else "None"}'
-
 class Dialog:
     def __init__(self, ctx: commands.Context) -> None:
         self.ctx = ctx
@@ -59,7 +93,7 @@ class Dialog:
             await self.dialog.delete()
 
 class Summary:
-    def __init__(self, ctx: commands.Context, send_on_return: bool = True):
+    def __init__(self, ctx: commands.Context, send_on_return: bool = True) -> None:
         self.ctx = ctx
         self.fields = {}
         self.send_on_return = send_on_return
@@ -132,7 +166,7 @@ history = History()
 
 def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = {'q': 'quiet', 'v': 'verbose'}):
     def wrapper(func):
-        async def wrapped(self, ctx, *, args: str = '', **_):
+        async def wrapped(self, ctx: commands.Context, *, args: str = '', **_):
             SHORT_VAR_FILTER = r'-- ?([^ ]+) ?= ?([^ ]+)'
             LONG_VAR_FILTER = r'-- ?([^ ]+) ?= ?["“](.+)["“]'
             FLAG_FILTER = r'-- ?([^ ]+)'
@@ -191,7 +225,7 @@ def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = 
 
 def summarized():
     def wrapper(func):
-        async def wrapped(self, ctx, *args, **kwargs):
+        async def wrapped(self, ctx: commands.Context, *args, **kwargs):
             summary = await func(self, ctx, *args, **kwargs)
             history.add(summary)
 
@@ -215,7 +249,7 @@ def summarized():
 #   - decorator MUST be placed below @bot.command() decorator
 
 def dev_only():
-    def predicate(ctx):
+    def predicate(ctx: commands.Context):
         return str(ctx.author.id) in getenv('DEVELOPER_IDS')    
     return commands.check(predicate)
 
