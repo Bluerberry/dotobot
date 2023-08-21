@@ -161,12 +161,17 @@ history = History()
 
 # Wraps around commands to split args into flags and params. Also gives summary if summarized
 #   - incoming func MUST follow async (self, ctx, flags, vars, params) -> Any
-#   - outgoing func follows async (self, ctx, *args, **kwargs) -> Any
-#   - decorator Must be placed below @bot.command() decorator
+#   - outgoing func follows async (self, ctx, *, raw: str = '', **args) -> Any
+#   - decorator MUST be placed below @bot.command() decorator
 
-def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = {'q': 'quiet', 'v': 'verbose'}):
-    def wrapper(func):
-        async def wrapped(self, ctx: commands.Context, *, args: str = '', **_):
+def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = {}):
+    def decorator(func):
+        if hasattr(func, 'default_command'):
+            raise Exception('Cannot apply default_command decorator twice')
+        if hasattr(func, 'summarized'):
+            thesaurus.update({'q': 'quiet', 'v': 'verbose'})
+
+        async def wrapped(self, ctx: commands.Context, *, raw: str = '', **_):
             SHORT_VAR_FILTER = r'-- ?([^ ]+) ?= ?([^ ]+)'
             LONG_VAR_FILTER = r'-- ?([^ ]+) ?= ?["“](.+)["“]'
             FLAG_FILTER = r'-- ?([^ ]+)'
@@ -176,10 +181,10 @@ def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = 
             params = []
 
             # Filter out vars
-            raw_vars = regex.findall(LONG_VAR_FILTER, args)
-            args = regex.sub(LONG_VAR_FILTER, '', args)
-            raw_vars.extend(regex.findall(SHORT_VAR_FILTER, args))
-            args = regex.sub(SHORT_VAR_FILTER, '', args)
+            raw_vars = regex.findall(LONG_VAR_FILTER, raw)
+            raw = regex.sub(LONG_VAR_FILTER, '', raw)
+            raw_vars.extend(regex.findall(SHORT_VAR_FILTER, raw))
+            raw = regex.sub(SHORT_VAR_FILTER, '', raw)
 
             for var in raw_vars:
                 key, value = var
@@ -189,8 +194,8 @@ def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = 
                     vars[key] = value
 
             # Filter out flags
-            raw_flags = regex.findall(FLAG_FILTER, args)
-            args = regex.sub(FLAG_FILTER, '', args)
+            raw_flags = regex.findall(FLAG_FILTER, raw)
+            raw = regex.sub(FLAG_FILTER, '', raw)
 
             for flag in raw_flags:
                 if flag in thesaurus:
@@ -198,8 +203,8 @@ def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = 
                 else:
                     flags.append(flag)
             
-            # Filter parameters
-            params = regex.findall(param_filter, args)
+            # Filter out parameters
+            params = regex.findall(param_filter, raw)
 
             # Call function
             return_value = await func(self, ctx, flags, vars, params)
@@ -216,32 +221,33 @@ def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = 
         
         wrapped.default_command = True
         return wrapped
-    return wrapper
+    return decorator
 
 # Wraps around commands to add summary to history. Also gives summary if default_command
-#   - incoming func MUST return Summary
+#   - incoming func MUST follow async (self, *args, **kwargs) -> Summary
 #   - outgoing func signature does not change
-#   - decorator MUST be placed below @bot.command() decorator
+#   - decorator MUST be placed below @bot.command() and @util.default_command() decorator
 
 def summarized():
-    def wrapper(func):
-        async def wrapped(self, ctx: commands.Context, *args, **kwargs):
-            summary = await func(self, ctx, *args, **kwargs)
+    def decorator(func):
+        if hasattr(func, 'default_command'):
+            raise Exception('Summarized decorator MUST be placed below default_command decorator')
+        if hasattr(func, 'summarized'):
+            raise Exception('Cannot apply summarized decorator twice')
+
+        async def wrapped(self, *args, **kwargs):
+
+            # Add summary to history
+            summary = await func(self, *args, **kwargs)
+            if not isinstance(summary, Summary):
+                raise Exception('Summarized decorator must be used on functions that return Summary')
+
             history.add(summary)
-
-            # Give summary
-            if hasattr(func, 'default_command'):
-                if summary.send_on_return and 'quiet' not in args[0]:
-                    if 'verbose' in args[0]:
-                        await ctx.reply(embed=summary.make_embed())
-                    else:
-                        await ctx.reply(summary.header)
-
             return summary
         
         wrapped.summarized = True
         return wrapped
-    return wrapper
+    return decorator
 
 # Wraps around commands to make it dev only
 #   - incoming func signature does not matter

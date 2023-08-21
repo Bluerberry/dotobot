@@ -236,7 +236,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
         return summary
 
     @ping.command(name='setup', description='Ping setup')
-    @util.default_command(param_filter=r'^ *(\d+) *$', thesaurus={'f': 'force', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'^ *(\d+) *$', thesaurus={'f': 'force'})
     @util.summarized()
     async def setup(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)

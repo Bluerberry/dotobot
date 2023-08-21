@@ -150,7 +150,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         await summary.ctx.reply(embed=summary.make_embed())
 
     @commands.command(name='load', description='Loads extensions by name.')
-    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all'})
     @util.summarized()
     @util.dev_only()
     async def load(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
@@ -198,7 +198,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         return summary
 
     @commands.command(name='unload', description='Unloads extensions by name.')
-    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all'})
     @util.summarized()
     @util.dev_only()
     async def unload(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
@@ -250,7 +250,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
         return summary
 
     @commands.command(name='reload', description='Reloads extensions by name.')
-    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'(\w+)', thesaurus={'a': 'all'})
     @util.summarized()
     @util.dev_only()
     async def reload(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> discord.Embed:
@@ -345,10 +345,11 @@ class System(commands.Cog, name=name, description='Controls internal functionali
             with open('logs//main.log', 'br') as file:
                 await ctx.reply(file=discord.File(file, 'main.log'))
         except Exception as err:
+            await ctx.reply('Failed to dump log')
             log.error(err)
 
     @commands.command(name='status', description='Sets bot status')
-    @util.default_command(param_filter=r'^ *(.+?) *$', thesaurus={'q': 'quiet', 'v': 'verbose', 'r': 'random', 'p': 'playing', 'w': 'watching', 'l': 'listening', 'c': 'competing'})
+    @util.default_command(param_filter=r'^ *(.+?) *$', thesaurus={'r': 'random', 'rand': 'random', 'p': 'playing', 'play': 'playing', 'w': 'watching', 'watch': 'watching', 'l': 'listening', 'listen': 'listening', 'c': 'competing', 'comp': 'competing'})
     @util.summarized()
     @util.dev_only()
     async def status(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:

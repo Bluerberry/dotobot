@@ -100,7 +100,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
 
     @commands.group(name='quote', aliases=['q'], description='Subgroup for quote functionality', invoke_without_command=True)
-    @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all'})
     @util.summarized()
     async def quote(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -191,7 +191,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
         return summary
 
     @quote.command(name='search', description='Searches through quotes')
-    @util.default_command(thesaurus={'e': 'exact', 'c': 'contains', 'f': 'fuzzy', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(thesaurus={'e': 'exact', 'c': 'contains', 'f': 'fuzzy'})
     @util.summarized()
     async def search(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
@@ -298,7 +298,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
     @quote.command(name='remove', aliases=['del', 'delete'], description='Removes quotes')
     @commands.has_permissions(administrator=True)
-    @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'q': 'quiet', 'v': 'verbose'})
+    @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all'})
     @util.summarized()
     async def remove(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
         summary = util.Summary(ctx)
