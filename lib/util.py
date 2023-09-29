@@ -1,4 +1,6 @@
 
+from __future__ import annotations
+
 import asyncio
 import re as regex
 from glob import iglob
@@ -6,15 +8,17 @@ from os import getenv
 from os.path import join
 from typing import Any, Generator, Tuple
 
-import discord
 import dotenv
+import errors
+import parsing
+
+import discord
 from discord.ext import commands
 
 MIN_RELATIVE_OVERLAP = 0.5
 FUZZY_OVERLAP_MARGIN = 1
 MAX_RELATIVE_DISTANCE = 0.5
 FUZZY_DISTANCE_MARGIN = 3
-
 
 # ---------------------> Environment setup
 
@@ -58,8 +62,77 @@ class ContinueCancelMenu(discord.ui.View):
         self.responded.set()
 
 
-# ---------------------> Util Classes
+# ---------------------> Utility classes
 
+
+class DefaultEmbed(discord.Embed):
+    def __init__(self, bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> None:
+        palette = [
+            discord.Colour.from_rgb(255, 89,  94 ), # Red
+            discord.Colour.from_rgb(255, 202, 58 ), # Yellow
+            discord.Colour.from_rgb(138, 201, 38 ), # Green
+            discord.Colour.from_rgb(25,  130, 196), # Blue
+            discord.Colour.from_rgb(106, 76,  147)  # Purple
+        ]
+
+        super().__init__(
+            title=title,
+            description=description,
+            color=palette[color % 5]
+        )
+
+        if author:
+            self.set_author(name=bot.user.name)
+        if footer:
+            self.set_footer(text=f'Powered by {bot.user.name}')
+
+class ANSIFactory:
+    def __init__(self) -> None:
+        self.text = '```ansi\n[0m'
+    
+    def __str__(self) -> str:
+        return self.text + '[0m```'
+    
+    def add_raw(self, text: str) -> None:
+        self.text += text
+    
+    def add(self, text: str, colour: str = 'default', stroke: str = 'default') -> None:
+        self.text += '[' # Start escape sequence
+        
+        # Set stroke
+        if stroke == 'default':
+            self.text += '0;'
+        elif stroke == 'bold':
+            self.text += '1;'
+        elif stroke == 'underline':
+            self.text += '4;'
+        else:
+            raise ValueError('Invalid stroke given')
+        
+        # Set colour
+        if colour == 'default':
+            self.text += '39m'
+        elif colour == 'grey':
+            self.text += '30m'
+        elif colour == 'red':
+            self.text += '31m'
+        elif colour == 'green':
+            self.text += '32m'
+        elif colour == 'yellow':
+            self.text += '33m'
+        elif colour == 'blue':
+            self.text += '34m'
+        elif colour == 'magenta':
+            self.text += '35m'
+        elif colour == 'cyan':
+            self.text += '36m'
+        elif colour == 'white':
+            self.text += '37m'
+        else:
+            raise ValueError('Invalid colour given')
+        
+        # Add text
+        self.text += text + '[0m'
 
 class SearchItem:
     def __init__(self, item: Any, text: str) -> None:
@@ -72,7 +145,7 @@ class SearchItem:
         self.distance          = None
         self.relative_distance = None
         self.ranking           = None
-    
+
 class Dialog:
     def __init__(self, ctx: commands.Context) -> None:
         self.ctx = ctx
@@ -118,8 +191,8 @@ class History:
     history = []
 
     def add(self, summary: Summary) -> None:
-        self.history.append(summary) # Add to history
-        self.history = self.history[-10:] # Trim history
+        self.history.append(summary)
+        self.history = self.history[-10:]
 
     def last(self) -> Summary | None:
         if len(self.history) == 0:
@@ -132,53 +205,32 @@ class History:
                 return summary
         return None
 
-class DefaultEmbed(discord.Embed):
-    def __init__(self, bot: commands.Bot, title: str = '', description: str = '', author: bool = False, footer: bool = True, color: int = 0) -> None:
-        palette = [
-            discord.Colour.from_rgb(255, 89,  94 ), # Red
-            discord.Colour.from_rgb(255, 202, 58 ), # Yellow
-            discord.Colour.from_rgb(138, 201, 38 ), # Green
-            discord.Colour.from_rgb(25,  130, 196), # Blue
-            discord.Colour.from_rgb(106, 76,  147)  # Purple
-        ]
-
-        super().__init__(
-            title=title,
-            description=description,
-            color=palette[color % 5]
-        )
-
-        if author:
-            self.set_author(name=bot.user.name)
-        if footer:
-            self.set_footer(text=f'Powered by {bot.user.name}')
-
 history = History()
-
 
 # ---------------------> Wrappers
 
 
-# Wraps around commands to split args into flags and params. Also gives summary if summarized
-#   - incoming func MUST follow async (self, ctx, flags, vars, params) -> Any
+# Wraps around commands to split args into flags, params and variables using regex
+#   - incoming func MUST follow async (self, ctx, dialog, summary, flags, vars, params) -> Any
 #   - outgoing func follows async (self, ctx, *, raw: str = '', **args) -> Any
 #   - decorator MUST be placed below @bot.command() decorator
 
-def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = {}):
+def regex_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = {}):
     def decorator(func):
-        if hasattr(func, 'default_command'):
-            raise Exception('Cannot apply default_command decorator twice')
-        if hasattr(func, 'summarized'):
-            thesaurus.update({'q': 'quiet', 'v': 'verbose'})
+        if hasattr(func, 'signature_command'):
+            raise errors.WrapperError('Signature commands and regex commands are mutually exclusive')
+        if hasattr(func, 'regex_command'):
+            raise errors.WrapperError('Method is already a regex command')
 
-        async def wrapped(self, ctx: commands.Context, *, raw: str = '', **_):
+        async def wrapped(self, ctx: commands.Context, *, raw: str = '', **_) -> None:
             SHORT_VAR_FILTER = r'-- ?([^ ]+) ?= ?([^ ]+)'
             LONG_VAR_FILTER = r'-- ?([^ ]+) ?= ?["“](.+)["“]'
             FLAG_FILTER = r'-- ?([^ ]+)'
             
-            flags  = []
-            vars   = {}
-            params = []
+            flags, vars, params = [], {}, []
+            dialog = feedback.Dialog(ctx)
+            summary = feedback.Summary(ctx)
+            summary.set_header(f'Resolved {ctx.prefix}{ctx.command.name}')
 
             # Filter out vars
             raw_vars = regex.findall(LONG_VAR_FILTER, raw)
@@ -189,9 +241,8 @@ def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = 
             for var in raw_vars:
                 key, value = var
                 if key in thesaurus:
-                    vars[thesaurus[key]] = value
-                else:
-                    vars[key] = value
+                    key = thesaurus[key]
+                vars[key] = value
 
             # Filter out flags
             raw_flags = regex.findall(FLAG_FILTER, raw)
@@ -199,53 +250,108 @@ def default_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = 
 
             for flag in raw_flags:
                 if flag in thesaurus:
-                    flags.append(thesaurus[flag])
-                else:
-                    flags.append(flag)
+                    flag = thesaurus[flag]
+                flags.append(flag)
             
             # Filter out parameters
             params = regex.findall(param_filter, raw)
 
-            # Call function
-            return_value = await func(self, ctx, flags, vars, params)
+            # Invoke command
+            return_value = await func(self, ctx, dialog, summary, flags, vars, params)
+            if summary.send_on_return and 'quiet' not in flags:
+                if 'verbose' in flags:
+                    await dialog.add(embed=summary.make_embed())
+                else:
+                    await dialog.add(summary.header)
 
-            # Give summary
-            if hasattr(func, 'summarized'):
-                if return_value.send_on_return and 'quiet' not in flags:
-                    if 'verbose' in flags:
-                        await ctx.reply(embed=return_value.make_embed())
-                    else:
-                        await ctx.reply(return_value.header)
-
-            return return_value
+            await dialog.cleanup()
         
         wrapped.default_command = True
         return wrapped
     return decorator
 
-# Wraps around commands to add summary to history. Also gives summary if default_command
-#   - incoming func MUST follow async (self, *args, **kwargs) -> Summary
-#   - outgoing func signature does not change
-#   - decorator MUST be placed below @bot.command() and @util.default_command() decorator
+# Wraps around commands to match args to a signature, catches illegal commands and irrelevant arguments
+#   - incoming func MUST follow async (self, ctx, dialog, summary, flags, vars, params) -> Any
+#   - outgoing func follows async (self, ctx, *, raw: str = '', **args) -> Any
+#   - decorator MUST be placed below @bot.command() decorator
 
-def summarized():
+def signature_command(raw_signature: str, thesaurus: dict[str, str] = {}):
+    signature = parsing.Signature(raw_signature, {}) # TODO import signature dictionary from settings
+
     def decorator(func):
-        if hasattr(func, 'default_command'):
-            raise Exception('Summarized decorator MUST be placed below default_command decorator')
-        if hasattr(func, 'summarized'):
-            raise Exception('Cannot apply summarized decorator twice')
+        if hasattr(func, 'signature_command'):
+            raise errors.WrapperError('Method is already a signature command')
+        if hasattr(func, 'regex_command'):
+            raise errors.WrapperError('Signature commands and regex commands are mutually exclusive')
 
-        async def wrapped(self, *args, **kwargs):
+        async def wrapped(self, ctx: commands.Context, *, raw: str = '', **_) -> None:
+            dialog  = feedback.Dialog(ctx)
+            summary = feedback.Summary(ctx)
+            summary.set_header(f'Resolved {ctx.prefix}{ctx.command.name}')
 
-            # Add summary to history
-            summary = await func(self, *args, **kwargs)
-            if not isinstance(summary, Summary):
-                raise Exception('Summarized decorator must be used on functions that return Summary')
+            try: # Parse command
+                command = parsing.Command(raw, {}, thesaurus) # TODO import command dictionary from settings
 
-            history.add(summary)
-            return summary
+            except Exception as err:
+                if isinstance(err, parsing.errors.UnknownObject):
+                    summary.set_header('Internal error')
+                    summary.set_field('Unknown Object', f'Congratulations, you found a massive internal issue! Please report this to the developers, thanks bby <3')
+
+                elif isinstance(err, parsing.errors.UnknownOperator):
+                    summary.set_header('Internal error')
+                    summary.set_field('Unknown Operator', f'Your command contains an unknown operator. This is a massive internal issue! Please report this to the developers, thanks bby <3')
+                
+                else:
+                    summary.set_header('Invalid command')
+                    summary.set_field('Expected signature', f'Given commands are expected to follow the following signature `{signature.raw}`. For more information, use the `help` command.')
+
+                    if isinstance(err, parsing.errors.UnexpectedToken):
+                        summary.set_field('Unexpected token', f'Found unexpected token `{err.token.raw}`, in given command `{command.raw}`.')
+                    elif isinstance(err, parsing.errors.UnexpectedEOF):
+                        summary.set_field('Unexpected EOF', f'Given command `{command.raw}` has floating operators')
+                    else:
+                        raise err
+
+                # Give feedback
+                await dialog.add(embed=summary.make_embed())
+                await dialog.cleanup()
+                history.add(summary)
+
+                return
+
+            # Match to signature
+            result = signature.match(command)
+            if not result.matched:
+                summary.set_header('Invalid command')
+                summary.set_field('Invalid command', f'Given command `{command.raw}` does not match the signature `{signature.raw}`.')
+                summary.set_field('Expected signature', f'Given commands are expected to follow the following signature `{signature.raw}`. For more information, use the `help` command.')
+                
+                # Give feedback
+                await dialog.add(embed=summary.make_embed())
+                await dialog.cleanup()
+                history.add(summary)
+
+                return
         
-        wrapped.summarized = True
+            # Warn about unmatched parameters, flags and variables
+            if result.unmatched_parameters:
+                summary.set_field('Irrellevant parameters', f'Given command `{command.raw}` contains irrellevant parameters: `{", ".join(result.unmatched_parameters)}`. These parameters will be ignored.')
+            if result.unmatched_flags:
+                summary.set_field('Irrellevant flags', f'Given command `{command.raw}` contains irrellevant flags: `{", ".join(result.unmatched_flags)}`. These flags will be ignored.')
+            if result.unmatched_variables:
+                summary.set_field('Irrellevant variables', f'Given command `{command.raw}` contains irrellevant variables: `{", ".join(result.unmatched_variables)}`. These variables will be ignored.')
+
+            # Invoke command
+            return_value = await func(self, ctx, dialog, summary, result.unmatched_parameters, result.matched_flags, result.matched_variables)
+            if summary.send_on_return and 'quiet' not in result.matched_flags:
+                if 'verbose' in result.matched_flags:
+                    await dialog.add(embed=summary.make_embed())
+                else:
+                    await dialog.add(summary.header)
+
+            await dialog.cleanup()
+
+        wrapped.signature_command = True
         return wrapped
     return decorator
 

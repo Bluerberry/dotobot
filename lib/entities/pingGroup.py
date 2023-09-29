@@ -1,5 +1,6 @@
+
 from pony.orm.core import Required, Optional, PrimaryKey
-from .base import db
+from .database import db
 
 class PingGroup(db.Entity):
     id = PrimaryKey(int, auto=True)

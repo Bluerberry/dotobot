@@ -1,5 +1,6 @@
+
 from pony.orm.core import Required, PrimaryKey, Optional, IntArray
-from .base import db
+from .database import db
 
 class User(db.Entity):
     discord_id = Required(int, unique=True, size=64)

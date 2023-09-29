@@ -1,6 +1,6 @@
-from pony.orm.core import Required, PrimaryKey, Optional
-from .base import db
 
+from pony.orm.core import Required, PrimaryKey, Optional
+from .database import db
 
 class Quote(db.Entity):
     quote_id = Required(int, size=64)

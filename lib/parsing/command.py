@@ -1,5 +1,6 @@
 
 from typing import Any
+from copy import deepcopy
 
 import core
 import errors
@@ -8,6 +9,11 @@ import signature
 DEFAULT_DICTIONARY = {
 	'flag-indicator':     '--',
 	'variable-indicator': '='
+}
+
+DEFAULT_THESAURUS = {
+    'q': 'quiet',
+    'v': 'verbose'
 }
 
 class Parameter(core.Token):
@@ -45,15 +51,18 @@ class Variable(core.Token):
 		return False
 
 class Command:
-	def __init__(self, raw: str, dictionary: dict[str, str]) -> None:
-		self.dictionary = DEFAULT_DICTIONARY
+	def __init__(self, raw: str, dictionary: dict[str, str], thesaurus: dict[str, str]) -> None:
+		self.dictionary = deepcopy(DEFAULT_DICTIONARY)
 		self.dictionary.update(dictionary)
+		self.thesaurus = deepcopy(DEFAULT_THESAURUS)
+		self.thesaurus.update(thesaurus)
+		self.raw = raw
 
 		tokens = core.tokenize(raw, self.dictionary)
-		self.validate_tokens(tokens)
-		self.command = self.parse_tokens(tokens)
+		self.__validate_tokens(tokens)
+		self.command = self.__parse_tokens(tokens)
 
-	def validate_tokens(tokens: list[core.Token]) -> None:
+	def __validate_tokens(self, tokens: list[core.Token]) -> None:
 		allow_token              = True
 		allow_variable_seperator = False
 		allow_flag_indicator     = True
@@ -104,7 +113,7 @@ class Command:
 		if expect_something:
 			raise errors.UnexpectedEOF()
 
-	def parse_tokens(tokens: list[core.Token]) -> list[core.Token]:
+	def __parse_tokens(self, tokens: list[core.Token]) -> list[core.Token]:
 		if not tokens:
 			return []
 
@@ -115,15 +124,20 @@ class Command:
 			if isinstance(tokens[index], core.Operator):
 				if tokens[index].type == 'flag-indicator':
 
+					# Collect label
+					label = tokens[index + 1]
+					if label in self.thesaurus:
+						label = self.thesaurus[label]
+
 					# Collect variable
 					if index + 2 < len(tokens) and isinstance(tokens[index + 2], core.Operator) and tokens[index + 2].type == 'variable-indicator':
 						value, type = core.Types.convert(tokens[index + 3].raw)
-						other.append(Variable(tokens[index + 1], value, type))
+						other.append(Variable(label, value, type))
 						index += 4
 
 					# Collect flag
 					else:
-						other.append(Flag(tokens[index + 1]))
+						other.append(Flag(label))
 						index += 2
 
 			# Collect parameter
@@ -133,3 +147,6 @@ class Command:
 				index += 1
 
 		return parameters + other
+	
+	def match(self, signature: signature.Signature) -> signature.MatchResult:
+		return signature.match(self.command)

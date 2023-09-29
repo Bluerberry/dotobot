@@ -1,5 +1,6 @@
 
 from typing import Any
+from copy import deepcopy
 
 import command
 import core
@@ -80,14 +81,15 @@ class Group(core.Token):
 
 class Signature:
 	def __init__(self, raw: str, dictionary: dict[str, str]) -> None:
-		self.dictionary = DEFAULT_DICTIONARY
+		self.raw = raw
+		self.dictionary = deepcopy(DEFAULT_DICTIONARY)
 		self.dictionary.update(dictionary)
 
 		tokens = core.tokenize(raw, self.dictionary)
-		self.validate_tokens(tokens)
-		self.signature = self.parse_tokens(tokens)
+		self.__validate_tokens(tokens)
+		self.signature = self.__parse_tokens(tokens)
 
-	def validate_tokens(self, tokens: list[core.Token]) -> None:
+	def __validate_tokens(self, tokens: list[core.Token]) -> None:
 		allow_open_required_group   = True
 		allow_close_required_group  = False
 		allow_open_optional_group   = True
@@ -342,7 +344,7 @@ class Signature:
 		if expect_something:
 			raise errors.UnexpectedEOF()
 
-	def parse_tokens(self, tokens: list[core.Token], required: bool = True) -> core.Token | None:
+	def __parse_tokens(self, tokens: list[core.Token], required: bool = True) -> core.Token | None:
 		if not tokens:
 			return None
 
@@ -378,7 +380,7 @@ class Signature:
 						internal_tokens.append(tokens[index])
 						index += 1
 
-					non_exclusive.append(self.parse_tokens(internal_tokens, True))
+					non_exclusive.append(self.__parse_tokens(internal_tokens, True))
 					index += 1
 
 				# Collect internal tokens and recurse
@@ -399,7 +401,7 @@ class Signature:
 						internal_tokens.append(tokens[index])
 						index += 1
 
-					non_exclusive.append(self.parse_tokens(internal_tokens, False))
+					non_exclusive.append(self.__parse_tokens(internal_tokens, False))
 					index += 1
 
 				# Add non-exclusive group to exclusive, collapsing single member groups

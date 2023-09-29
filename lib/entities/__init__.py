@@ -1,6 +1,7 @@
 
-from .base  import db
-from .extension   import Extension
-from .pingGroup  import PingGroup
+from .database import db
+from .extension import Extension
+from .pingGroup import PingGroup
 from .quote import Quote
-from .user  import User, BannedUser
+from .user import User, BannedUser
+
