@@ -1,3 +1,0 @@
-
-class WrapperError(Exception):
-    pass

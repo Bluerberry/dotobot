@@ -1,7 +1,13 @@
 
-from requests import get as _get
+# Third party imports
+from requests import get
 
-from .errors import GameNotFound as _GameNotFound
+# Local imports
+from . import errors
+
+
+# ---------------------> External Classes
+
 
 class Game:
 	def __init__(self, id: int, lazy: bool=True) -> None:
@@ -21,11 +27,11 @@ class Game:
 			return
 
 		# Get appdetails
-		site = _get(f'http://store.steampowered.com/api/appdetails?appids={self.id}&format=json')
+		site = get(f'http://store.steampowered.com/api/appdetails?appids={self.id}&format=json')
 		rawdata = site.json()
 
 		if not rawdata or not rawdata[str(self.id)]['success']:
-			raise _GameNotFound('The specified game could not be found')
+			raise errors.GameNotFound('The specified game could not be found')
 		gamedata = rawdata[str(self.id)]['data']
 
 		# Store appdetails

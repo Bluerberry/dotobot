@@ -1,21 +1,24 @@
 
-from requests import get as _get
+# Third party imports
+from requests import get
 
-from .game import Game as _Game
-from .errors import GameNotFound as _GameNotFound
-from .errors import UserNotFound as _UserNotFound
+# Local imports
+from . import errors, game
+
+# ---------------------> External Classes
+
 
 class User:
 	def __init__(self, token: str, id64: int, lazy: bool=True) -> None:
 
 		# Get userdata
-		site = _get(f'http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={token}&steamids={id64}&format=json')
+		site = get(f'http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={token}&steamids={id64}&format=json')
 		rawdata = site.json()
 
 		try:
 			userdata = rawdata['response']['players'][0]
 		except IndexError:
-			raise _UserNotFound('The specified user could not be found')
+			raise errors.UserNotFoundError('The specified user could not be found')
 
 		# Store data
 		self.lazy = lazy
@@ -28,7 +31,7 @@ class User:
 			return
 
 		# Call steam API for game data
-		site = _get(f'http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={token}&steamid={id64}&format=json')
+		site = get(f'http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={token}&steamid={id64}&format=json')
 		rawdata = site.json()
 		gamedata = rawdata['response']['games']
 
@@ -38,8 +41,8 @@ class User:
 
 		for game in gamedata:
 			try:
-				self.games.append(_Game(game['appid'], lazy))
-			except _GameNotFound:
+				self.games.append(game.Game(game['appid'], lazy))
+			except errors.GameNotFoundError:
 				pass
 	
 	def unlazify(self) -> None:
@@ -50,7 +53,7 @@ class User:
 		for game in self.games:
 			try:
 				game.unlazify()
-			except _GameNotFound:
+			except errors.GameNotFoundError:
 				self.games.remove(game)
 
 		# Update lazy param

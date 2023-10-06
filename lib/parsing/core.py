@@ -1,13 +1,18 @@
 
 from __future__ import annotations
 
+# Stdlib imports
 from enum import Enum
 from typing import Any
 
-import errors
+# Local imports
+from . import errors
 
 
-class Types(Enum):
+# ---------------------> Internal Classes
+
+
+class _Types(Enum):
 	ANY     = 0
 	STRING  = 1
 	INTEGER = 2
@@ -15,61 +20,64 @@ class Types(Enum):
 	BOOLEAN = 4
 
 	@staticmethod
-	def get_type(raw: str) -> Types:
+	def get_type(raw: str) -> _Types:
 		if raw in ('any', 'any-array'):
-			return Types.ANY
+			return _Types.ANY
 		elif raw in ('str', 'str-array'):
-			return Types.STRING
+			return _Types.STRING
 		elif raw in ('int', 'int-array'):
-			return Types.INTEGER
+			return _Types.INTEGER
 		elif raw in ('float', 'float-array'):
-			return Types.FLOAT
+			return _Types.FLOAT
 		elif raw in ('bool', 'bool-array'):
-			return Types.BOOLEAN
+			return _Types.BOOLEAN
 		else:
-			raise errors.UnknownType(raw)
+			raise errors.UnknownTypeError(raw)
 		
 	@staticmethod
-	def get_array(raw: str) -> bool:
+	def is_array(raw: str) -> bool:
 		return raw.endswith('-array')
 
 	@staticmethod
-	def convert(raw: str) -> tuple[Any, Types]:
+	def convert(raw: str) -> tuple[Any, _Types]:
 		try:
 			if '.' in raw:
-				return float(raw), Types.FLOAT
+				return float(raw), _Types.FLOAT
 			else:
-				return int(raw), Types.INTEGER
+				return int(raw), _Types.INTEGER
 
 		except ValueError:
 			if raw.lower() == 'true':
-				return True, Types.BOOLEAN
+				return True, _Types.BOOLEAN
 			elif raw.lower() == 'false':
-				return False, Types.BOOLEAN
+				return False, _Types.BOOLEAN
 			else:
-				return raw, Types.STRING
+				return raw, _Types.STRING
 
-class Token:
+class _Token:
 	def __init__(self, raw: str) -> None:
 		self.raw = raw
 
 	def __eq__(self, other: object) -> bool:
-		if isinstance(other, Token):
+		if isinstance(other, _Token):
 			return self.raw == other.raw
 		return False
 
-class Operator(Token):
+class _Operator(_Token):
 	def __init__(self, raw: str, type: str) -> None:
 		self.type = type
 		self.raw = raw
 
 	def __eq__(self, other: object) -> bool:
-		if isinstance(other, Operator):
+		if isinstance(other, _Operator):
 			return self.type == other.type
 		return False
 
 
-def tokenize(raw: str, dictionary: dict[str, str]) -> list[Token]:
+# ---------------------> Internal Functions
+
+
+def _tokenize(raw: str, dictionary: dict[str, str]) -> list[_Token]:
 	tokens = []
 	token = ''
 	index = 0
@@ -79,22 +87,22 @@ def tokenize(raw: str, dictionary: dict[str, str]) -> list[Token]:
 		# Match long parameter
 		if raw[index] == dictionary['long-parameter-indicator']:
 			if token:
-				tokens.append(Token(token))
+				tokens.append(_Token(token))
 				token = ''
 
 			index += 1
 			if index >= len(raw):
-				raise errors.UnexpectedEOF()
+				raise errors.UnexpectedEOFError()
 			
 			while raw[index] != dictionary['long-parameter-indicator']:
 				token += raw[index]
 				index += 1
 				if index >= len(raw):
-					raise errors.UnexpectedEOF()
+					raise errors.UnexpectedEOFError()
 			
 			if not token:
-				raise errors.UnexpectedToken(dictionary['long-parameter-indicator'])
-			tokens.append(Token(token))
+				raise errors.UnexpectedTokenError(dictionary['long-parameter-indicator'])
+			tokens.append(_Token(token))
 			token = ''
 
 			index += 1
@@ -103,7 +111,7 @@ def tokenize(raw: str, dictionary: dict[str, str]) -> list[Token]:
 		# Consume whitespace
 		if raw[index] == ' ':
 			if token:
-				tokens.append(Token(token))
+				tokens.append(_Token(token))
 				token = ''
 
 			index += 1
@@ -117,10 +125,10 @@ def tokenize(raw: str, dictionary: dict[str, str]) -> list[Token]:
 
 		if match:
 			if token:
-				tokens.append(Token(token))
+				tokens.append(_Token(token))
 				token = ''
 
-			tokens.append(Operator(dictionary[match], match))
+			tokens.append(_Operator(dictionary[match], match))
 			index += longest_operator
 			continue
 
@@ -129,5 +137,5 @@ def tokenize(raw: str, dictionary: dict[str, str]) -> list[Token]:
 		index += 1
 
 	if token:
-		tokens.append(Token(token))
+		tokens.append(_Token(token))
 	return tokens

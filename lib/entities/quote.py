@@ -1,6 +1,13 @@
 
-from pony.orm.core import Required, PrimaryKey, Optional
+# Third party imports
+from pony.orm.core import Required, PrimaryKey
+
+# Local imports
 from .database import db
+
+
+# ---------------------> External Classes
+
 
 class Quote(db.Entity):
     quote_id = Required(int, size=64)

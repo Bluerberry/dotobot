@@ -1,5 +1,5 @@
 
-import errors
+from . import errors
 
 from .client import Client
 from .user import User

@@ -1,6 +1,13 @@
 
+# Third party imports
 from pony.orm.core import Required, PrimaryKey, Optional, IntArray
+
+# Local imports
 from .database import db
+
+
+# ---------------------> External Classes
+
 
 class User(db.Entity):
     discord_id = Required(int, unique=True, size=64)
