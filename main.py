@@ -1,16 +1,15 @@
 
-import json
-import logging
+# Stdlib imports
+import json, logging, os
 import logging.config
-import os
 
-import discord
-import dotenv
+# Third party imports
+import dotenv, discord
 import pony.orm as pony
 from discord.ext import commands
 
-import lib.entities as entities
-import lib.util as util
+# Local imports
+from lib import entities, utility
 
 
 # ---------------------> Setup
@@ -26,12 +25,11 @@ dotenv.load_dotenv()
 
 # Database
 entities.db.bind(provider='postgres', user=os.getenv('DB_USER'), password=os.getenv('DB_PASSWORD'),
-        host=os.getenv('DB_HOST'), port=os.getenv('DB_PORT'), database=os.getenv('DB_NAME'))
+                 host=os.getenv('DB_HOST'), port=os.getenv('DB_PORT'), database=os.getenv('DB_NAME'))
 entities.db.generate_mapping(check_tables=True, create_tables=True)
 
 # Discord bot
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix='$', intents=intents)
+bot = commands.Bot(command_prefix='$', intents=discord.Intents.all()) # TODO import prefix from settings
 
 
 # ---------------------> Main
@@ -41,11 +39,11 @@ if __name__ == '__main__':
 
     # Load all extensions
     with pony.db_session:
-        for ext in util.yield_extensions(prefix_path=True):
+        for ext in utility.yield_extensions(prefix_path=True):
             try:
 
                 # Skip extensions marked inactive
-                name = util.extension_name(ext)
+                name = utility.extension_name(ext)
                 if entities.Extension.exists(name=name):
                     extension = entities.Extension.get(name=name)
                     if not extension.active:
