@@ -1,15 +1,16 @@
 
+#External Imports
 import logging
 import os
 from os.path import basename
-
 import discord
 import dotenv
 import pony.orm as pony
 from discord.ext import commands
 
+#Local Imports
 import lib.entities as entities
-import lib.util as utility
+import lib.utility as utility
 
 
 # ---------------------> Logging setup
