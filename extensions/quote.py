@@ -1,16 +1,15 @@
 
-#External Imports
 import logging
 import os
 from os.path import basename
+
 import discord
 import dotenv
 import pony.orm as pony
 from discord.ext import commands
 
-#Local Imports
 import lib.entities as entities
-import lib.utility as utility
+import lib.utility.util as util
 
 
 # ---------------------> Logging setup
@@ -52,7 +51,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    async def display_quotes(self, dialog: utility.Dialog, summary: utility.Summary, quotes: list[entities.Quote]) -> None:
+    async def display_quotes(self, dialog: util.Dialog, summary: util.Summary, quotes: list[entities.Quote]) -> None:
         if not quotes:
             summary.set_header('No quotes found')
 
@@ -66,12 +65,12 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
             summary.set_header(f'Found {len(quotes)} quotes')
             await self.mass_quote(dialog, quotes)
 
-    async def mass_quote(self, dialog: utility.Dialog, quotes: list[entities.Quote]) -> None:
+    async def mass_quote(self, dialog: util.Dialog, quotes: list[entities.Quote]) -> None:
         start_id = quotes[0].quote_id
         block_count = 0
         msg = ''
 
-        embed = utility.DefaultEmbed(self.bot, 'Quotes', footer=True)
+        embed = util.DefaultEmbed(self.bot, 'Quotes', footer=True)
         for quote in quotes:
             next_quote = str(quote) + '\n'
 
@@ -81,7 +80,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                 # Send embed every 6 message blocks
                 if block_count and not block_count % 6:
                     await dialog.add(embed=embed)
-                    embed = utility.DefaultEmbed(self.bot, 'Quotes', footer=True, color=block_count // 6)
+                    embed = util.DefaultEmbed(self.bot, 'Quotes', footer=True, color=block_count // 6)
 
                 embed.add_field(name=f'Quotes {start_id} : {quote.quote_id}', value=msg, inline=False)
                 start_id = quote.quote_id
@@ -102,11 +101,11 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
 
     @commands.group(name='quote', aliases=['q'], description='Subgroup for quote functionality', invoke_without_command=True)
-    @utility.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all'})
-    @utility.summarized()
-    async def quote(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> utility.Summary:
-        summary = utility.Summary(ctx)
-        dialog = utility.Dialog(ctx)
+    @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all'})
+    @util.summarized()
+    async def quote(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
 
         # Check params
         if not params and 'all' not in flags and 'start' not in vars and 'stop' not in vars:
@@ -160,11 +159,11 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
         return summary
 
     @quote.command(name='add', description='Add a quote to the database')
-    @utility.default_command(param_filter=r'^ *["“] *(.+?) *["”] ?- *(.+?) *$')
-    @utility.summarized()
-    async def add(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> utility.Summary:
-        summary = utility.Summary(ctx)
-        dialog = utility.Dialog(ctx)
+    @util.default_command(param_filter=r'^ *["“] *(.+?) *["”] ?- *(.+?) *$')
+    @util.summarized()
+    async def add(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
 
         # Check params
         if not params:
@@ -193,11 +192,11 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
         return summary
 
     @quote.command(name='search', description='Searches through quotes')
-    @utility.default_command(thesaurus={'e': 'exact', 'c': 'contains', 'f': 'fuzzy'})
-    @utility.summarized()
-    async def search(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> utility.Summary:
-        summary = utility.Summary(ctx)
-        dialog = utility.Dialog(ctx)
+    @util.default_command(thesaurus={'e': 'exact', 'c': 'contains', 'f': 'fuzzy'})
+    @util.summarized()
+    async def search(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
 
         # Check params
         if params:
@@ -225,10 +224,10 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                 else: # Fuzzy search is default
                     log.debug(f'Following --fuzzy branch for {ctx.prefix}{ctx.command}')
                     quotes = entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id)
-                    options = [utility.SearchItem(quote, quote.content) for quote in quotes]
-                    _, results = utility.fuzzy_search(options, vars['content'])
-                    author_options = [utility.SearchItem(quote, quote.author) for quote in quotes]
-                    _, author_results = utility.fuzzy_search(author_options, vars['author'])
+                    options = [util.SearchItem(quote, quote.content) for quote in quotes]
+                    _, results = util.fuzzy_search(options, vars['content'])
+                    author_options = [util.SearchItem(quote, quote.author) for quote in quotes]
+                    _, author_results = util.fuzzy_search(author_options, vars['author'])
 
                     # Merge the two rankings
                     for content_result in results:
@@ -259,8 +258,8 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                 else: # Fuzzy search is default
                     log.debug(f'Following --fuzzy branch for {ctx.prefix}{ctx.command}')
                     quotes = entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id)
-                    options = [utility.SearchItem(quote, quote.content) for quote in quotes]
-                    _, results = utility.fuzzy_search(options, vars['content'])
+                    options = [util.SearchItem(quote, quote.content) for quote in quotes]
+                    _, results = util.fuzzy_search(options, vars['content'])
                     quotes = [item.item for item in results[:10]]
 
             elif 'author' in vars:
@@ -281,8 +280,8 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                 else: # Fuzzy search is default
                     log.debug(f'Following --fuzzy branch for {ctx.prefix}{ctx.command}')
                     quotes = entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id)
-                    options = [utility.SearchItem(quote, quote.author) for quote in quotes]
-                    _, results = utility.fuzzy_search(options, vars['author'])
+                    options = [util.SearchItem(quote, quote.author) for quote in quotes]
+                    _, results = util.fuzzy_search(options, vars['author'])
                     quotes = [result.item for result in results[:10]]
 
             else:
@@ -299,11 +298,11 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
     @quote.command(name='remove', aliases=['del', 'delete'], description='Removes quotes')
     @commands.has_permissions(administrator=True)
-    @utility.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'f': 'force'})
-    @utility.summarized()
-    async def remove(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> utility.Summary:
-        summary = utility.Summary(ctx)
-        dialog = utility.Dialog(ctx)
+    @util.default_command(param_filter=r'(\d+)', thesaurus={'a': 'all', 'f': 'force'})
+    @util.summarized()
+    async def remove(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
 
         # Check params
         if not params and 'all' not in flags:
@@ -354,7 +353,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
                 log.debug(f'Following bulk delete branch for {ctx.prefix}{ctx.command}')
 
                 # Verify bulk delete
-                view = utility.ContinueCancelMenu(ctx.author)
+                view = util.ContinueCancelMenu(ctx.author)
                 log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) is about to delete {len(quotes)} quotes')
                 await dialog.set(f'You are about to delete {len(quotes)} quotes. Are you really fucking sure?', view=view)
                 result = await view.await_response()
@@ -382,11 +381,11 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
     @quote.command(name='edit', description='Edits quotes')
     @commands.has_permissions(administrator=True)
-    @utility.default_command(param_filter=r'^ *(\d+) *$')
-    @utility.summarized()
-    async def edit(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> utility.Summary:
-        summary = utility.Summary(ctx)
-        dialog = utility.Dialog(ctx)
+    @util.default_command(param_filter=r'^ *(\d+) *$')
+    @util.summarized()
+    async def edit(self, ctx: commands.Context, flags: list[str], vars: dict, params: list[str]) -> util.Summary:
+        summary = util.Summary(ctx)
+        dialog = util.Dialog(ctx)
 
         # Check params
         if not params or 'content' not in vars and 'author' not in vars:
