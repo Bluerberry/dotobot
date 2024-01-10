@@ -18,10 +18,10 @@ class Game:
 		if self.lazy:
 			self.raw_gamedata = { 'steam_appid' : self.id }
 			return
-		
+
 		# Normal Game setup
 		self.unlazify()
-	
+
 	def unlazify(self) -> None:
 		if not self.lazy:
 			return

@@ -1,9 +1,10 @@
 
-# Third party imports
+# External libraries
 from requests import get
 
-# Local imports
+# Local libraries
 from . import errors, game
+
 
 # ---------------------> External Classes
 
@@ -39,12 +40,12 @@ class User:
 		self.raw_gamedata = gamedata
 		self.games = []
 
-		for game in gamedata:
+		for app in gamedata:
 			try:
-				self.games.append(game.Game(game['appid'], lazy))
+				self.games.append(game.Game(app['appid'], lazy))
 			except errors.GameNotFoundError:
 				pass
-	
+
 	def unlazify(self) -> None:
 		if not self.lazy:
 			return
@@ -58,4 +59,3 @@ class User:
 
 		# Update lazy param
 		self.lazy = False
-		

@@ -1,11 +1,11 @@
 
 from __future__ import annotations
 
-# Stdlib imports
+# Native libraries
 from enum import Enum
 from typing import Any
 
-# Local imports
+# Local libraries
 from . import errors
 
 
@@ -33,7 +33,7 @@ class _Types(Enum):
 			return _Types.BOOLEAN
 		else:
 			raise errors.UnknownTypeError(raw)
-		
+
 	@staticmethod
 	def is_array(raw: str) -> bool:
 		return raw.endswith('-array')
@@ -93,13 +93,13 @@ def _tokenize(raw: str, dictionary: dict[str, str]) -> list[_Token]:
 			index += 1
 			if index >= len(raw):
 				raise errors.UnexpectedEOFError()
-			
+
 			while raw[index] != dictionary['long-parameter-indicator']:
 				token += raw[index]
 				index += 1
 				if index >= len(raw):
 					raise errors.UnexpectedEOFError()
-			
+
 			if not token:
 				raise errors.UnexpectedTokenError(dictionary['long-parameter-indicator'])
 			tokens.append(_Token(token))
@@ -119,9 +119,9 @@ def _tokenize(raw: str, dictionary: dict[str, str]) -> list[_Token]:
 
 		# Match operator
 		match, longest_operator = None, 0
-		for type, operator in dictionary.items():
+		for name, operator in dictionary.items():
 			if raw[index:].startswith(operator) and len(operator) > longest_operator:
-				match, longest_operator = type, len(operator)
+				match, longest_operator = name, len(operator)
 
 		if match:
 			if token:

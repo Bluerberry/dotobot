@@ -1,6 +1,7 @@
 
-# Local imports
+# Local libraries
 from . import errors, game, user
+
 
 # ---------------------> External Classes
 

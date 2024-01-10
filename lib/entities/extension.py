@@ -1,8 +1,8 @@
 
-# Third party imports
+# External libraries
 from pony.orm.core import Required
 
-# Local imports
+# Local libraries
 from .database import db
 
 
@@ -10,7 +10,7 @@ from .database import db
 
 
 class Extension(db.Entity):
-    name = Required(str, unique=True)
-    active = Required(bool)
+	name = Required(str, unique=True)
+	active = Required(bool)
 
 

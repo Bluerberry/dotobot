@@ -1,9 +1,9 @@
 
-# Stdlib imports
+# Native libraries
 from typing import Any
 from copy import deepcopy
 
-# Local imports
+# Local libraries
 from . import errors, core, signature
 
 # Constants
@@ -18,7 +18,9 @@ DEFAULT_THESAURUS = {
     'v': 'verbose'
 }
 
+
 # ---------------------> Internal Classes
+
 
 class _Parameter(core._Token):
 	def __init__(self, value: Any, type: core._Types) -> None:

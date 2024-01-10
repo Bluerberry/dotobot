@@ -1,5 +1,5 @@
 
-# Third party imports
+# External libraries
 from pony import orm
 
 # Database creation

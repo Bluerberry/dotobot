@@ -3,6 +3,6 @@
 
 ## Install
 
-This project is built using python 3.10 and poetry.
+This project uses Python 3.10 and Poetry.
 use `poetry install` to install packages
 and `poetry run python main.py` to run

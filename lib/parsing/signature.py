@@ -1,9 +1,9 @@
 
-# Stdlib imports
+# Native libraries
 from typing import Any
 from copy import deepcopy
 
-# Local imports
+# Local libraries
 from . import errors, core, command
 
 # Constants
@@ -17,8 +17,8 @@ DEFAULT_DICTIONARY = {
 	'flag-indicator':       	'--',
 	'variable-indicator':   	'=',
 	'xor-seperator':        	'|',
-	'long-parameter-indicator': '"'	
-}    
+	'long-parameter-indicator': '"'
+}
 
 
 # ---------------------> Internal Classes
