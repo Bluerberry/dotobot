@@ -1,19 +1,17 @@
 [tool.poetry]
-name = "dotobot-v5"
-version = "0.1.0"
-description = "Discord enhanced by idiots"
-authors = ["Bram Kreulen", "Maurits Kienhuis", "Julia van der Kris"]
+name = "dotobot"
+version = "5.1.0"
+description = "Discord but worse"
+authors = ["Bram Kreulen"]
 readme = "README.md"
-packages = [{include = "dotobot_v5"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-pony = "^0.7.16"
-py-cord = "^2.3.2"
-python-dotenv = "^0.21.1"
-discord-pretty-help = "^2.0.0"
-psycopg2 = "^2.9.5"
+pony = "^0.7.17"
 requests = "^2.31.0"
+python-dotenv = "^1.0.0"
+psycopg2 = "^2.9.9"
+py-cord = "^2.4.1"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,15 +1,25 @@
 
-# Stdlib imports
+# Native libraries
 import re as regex
 from os import getenv
+from copy import deepcopy
 
-# Third party imports
+# External libraries
 import dotenv
 from discord.ext import commands
 
-# Local imports
+# Local libraries
 from . import errors, ui
 from lib import parsing
+
+# Constants
+SHORT_VAR_FILTER = r'-- ?([^ ]+) ?= ?([^ ]+)'
+LONG_VAR_FILTER = r'-- ?([^ ]+) ?= ?["“](.+)["“]'
+FLAG_FILTER = r'-- ?([^ ]+)'
+DEFAULT_COMMAND_THESAURUS = {
+	'quiet': ['q'],
+	'verbose': ['v'],
+}
 
 
 # ---------------------> Environment setup
@@ -21,158 +31,184 @@ dotenv.load_dotenv()
 # ---------------------> Wrappers
 
 
-def regex_command(usage: str, param_filter: str = r'([^ ]+)', thesaurus: dict[str, str] = {}):
-    # Wraps around commands to split args into flags, params and variables using regex
-    #   - incoming func MUST follow async (self, ctx, dialog, summary, flags, vars, params) -> Any
-    #   - outgoing func follows async (self, ctx, *, raw: str = '', **args) -> Any
-    #   - decorator MUST be placed below @bot.command() decorator
-    
-    def decorator(func):
-        if hasattr(func, 'signature_command'):
-            raise errors.WrapperError('Signature commands and regex commands are mutually exclusive')
-        if hasattr(func, 'regex_command'):
-            raise errors.WrapperError('Method is already a regex command')
+def regex_command(param_filter: str = r'([^ ]+)', thesaurus: dict[str, list[str]] = {}):
+	# Wraps around commands to split args into flags, params and variables using regex
+	#   - incoming func MUST follow async (self, ctx, dialog, summary, params, flags, vars) -> Any
+	#   - outgoing func follows async (self, ctx, *, raw: str = '', **args) -> Any
+	#   - decorator MUST be placed below @bot.command() decorator
 
-        async def wrapped(self, ctx: commands.Context, *, raw: str = '', **_) -> None:
-            SHORT_VAR_FILTER = r'-- ?([^ ]+) ?= ?([^ ]+)'
-            LONG_VAR_FILTER = r'-- ?([^ ]+) ?= ?["“](.+)["“]'
-            FLAG_FILTER = r'-- ?([^ ]+)'
-            
-            flags, vars, params = [], {}, []
-            dialog = ui.Dialog(ctx)
-            summary = ui.Summary(ctx)
-            summary.set_header(f'Resolved {ctx.command.name} command')
-            summary.set_field('Usage', f'Given commands are expected to follow the following signature `{ctx.prefix}{ctx.command.name} {usage}`\nUse `{ctx.prefix}help {ctx.command.name}` for more information.')
+	temp = deepcopy(DEFAULT_COMMAND_THESAURUS)
+	temp.update(thesaurus)
+	thesaurus = temp
 
+	def decorator(func):
+		if hasattr(func, 'signature_command'):
+			raise errors.WrapperError('Signature commands and regex commands are mutually exclusive')
+		if hasattr(func, 'regex_command'):
+			raise errors.WrapperError('Method is already a regex command')
 
-            # Filter out vars
-            raw_vars = regex.findall(LONG_VAR_FILTER, raw)
-            raw = regex.sub(LONG_VAR_FILTER, '', raw)
-            raw_vars.extend(regex.findall(SHORT_VAR_FILTER, raw))
-            raw = regex.sub(SHORT_VAR_FILTER, '', raw)
+		async def wrapped(self, ctx: commands.Context, *, raw: str = '', **_) -> None:
+			params, flags, vars = [], [], {}
+			dialog = ui.Dialog(ctx)
+			summary = ui.Summary(ctx)
+			summary.set_header(f'Resolved {ctx.command.name} command')
 
-            for var in raw_vars:
-                key, value = var
-                if key in thesaurus:
-                    key = thesaurus[key]
-                vars[key] = value
+			# Filter out vars
+			raw_vars = regex.findall(LONG_VAR_FILTER, raw)
+			raw = regex.sub(LONG_VAR_FILTER, '', raw)
+			raw_vars.extend(regex.findall(SHORT_VAR_FILTER, raw))
+			raw = regex.sub(SHORT_VAR_FILTER, '', raw)
 
-            # Filter out flags
-            raw_flags = regex.findall(FLAG_FILTER, raw)
-            raw = regex.sub(FLAG_FILTER, '', raw)
+			for raw_var in raw_vars:
+				raw_key, raw_value = raw_var
+				for key, synonyms in thesaurus.items():
+					if raw_key in synonyms:
+						raw_key = key
+						break
+				
+				vars[raw_key] = raw_value
 
-            for flag in raw_flags:
-                if flag in thesaurus:
-                    flag = thesaurus[flag]
-                flags.append(flag)
-            
-            # Filter out parameters
-            params = regex.findall(param_filter, raw)
+			# Filter out flags
+			raw_flags = regex.findall(FLAG_FILTER, raw)
+			raw = regex.sub(FLAG_FILTER, '', raw)
 
-            # Invoke command
-            return_value = await func(self, ctx, dialog, summary, flags, vars, params)
-            if summary.send_on_return and 'quiet' not in flags:
-                if 'verbose' in flags:
-                    await dialog.add(embed=summary.make_embed())
-                else:
-                    await dialog.add(summary.header)
+			for flag in raw_flags:
+				for key, synonyms in thesaurus.items():
+					if flag in synonyms:
+						flag = key
+						break
+				
+				flags.append(flag)
 
-            await dialog.cleanup()
-        
-        wrapped.default_command = True
-        return wrapped
-    return decorator
+			# Filter out parameters
+			params = regex.findall(param_filter, raw)
 
-def signature_command(usage: str = '', thesaurus: dict[str, str] = {}):
-    # Wraps around commands to match args to a signature, catches illegal commands and irrelevant arguments
-    #   - incoming func MUST follow async (self, ctx, dialog, summary, flags, vars, params) -> Any
-    #   - outgoing func follows async (self, ctx, *, raw: str = '', **args) -> Any
-    #   - decorator MUST be placed below @bot.command() decorator
+			# Invoke command
+			return_value = await func(self, ctx, dialog, summary, params, flags, vars)
+			if summary.send_on_return and 'quiet' not in flags:
+				if 'verbose' in flags:
+					await dialog.add(embed=summary.make_embed())
+				else:
+					await dialog.add(summary.header)
 
-    signature = parsing.Signature(usage, {}) # TODO import signature dictionary from settings
+			await dialog.cleanup()
+			ui.history.add(summary)
+			return return_value
+		
+		wrapped.regex_command = True
+		return wrapped
+	return decorator
 
-    def decorator(func):
-        if hasattr(func, 'signature_command'):
-            raise parsing.errors.WrapperError('Method is already a signature command')
-        if hasattr(func, 'regex_command'):
-            raise parsing.errors.WrapperError('Signature commands and regex commands are mutually exclusive')
+def signature_command(usage: str = '', thesaurus: dict[str, list[str]] = {}):
+	# Wraps around commands to match args to a signature, catches illegal commands and irrelevant arguments
+	#   - incoming func MUST follow async (self, ctx, dialog, summary, params, flags, vars) -> Any
+	#   - outgoing func follows async (self, ctx, *, raw: str = '', **args) -> Any
+	#   - decorator MUST be placed below @bot.command() decorator
 
-        async def wrapped(self, ctx: commands.Context, *, raw: str = '', **_) -> None:
-            dialog = ui.Dialog(ctx)
-            summary = ui.Summary(ctx)
-            summary.set_header(f'Resolved {ctx.command.name} command')
-            summary.set_field('Usage', f'Given commands are expected to follow the following signature `{ctx.prefix}{ctx.command.name}{" " if usage else ""}{usage}`\nUse `{ctx.prefix}help {ctx.command.name}` for more information.')
+	signature = parsing.Signature(usage) # TODO import signature dictionary from settings
+	temp = deepcopy(DEFAULT_COMMAND_THESAURUS)
+	temp.update(thesaurus)
+	thesaurus = temp
 
-            try: # Parse command
-                command = parsing.Command(raw, {}, thesaurus) # TODO import command dictionary from settings
+	def decorator(func):
+		if hasattr(func, 'signature_command'):
+			raise parsing.errors.WrapperError('Method is already a signature command')
+		if hasattr(func, 'regex_command'):
+			raise parsing.errors.WrapperError('Signature commands and regex commands are mutually exclusive')
 
-            except Exception as err:
-                if isinstance(err, parsing.errors.UnknownObjectError):
-                    summary.set_header('Internal error')
-                    summary.set_field('Unknown Object', f'Congratulations, you found a massive internal issue! Please report this to the developers, thanks babygirl <3.')
+		async def wrapped(self, ctx: commands.Context, *, raw: str = '', **_) -> None:
+			dialog = ui.Dialog(ctx)
+			summary = ui.Summary(ctx)
+			summary.set_header(f'Resolved {ctx.command.name} command')
 
-                elif isinstance(err, parsing.errors.UnknownOperatorError):
-                    summary.set_header('Internal error')
-                    summary.set_field('Unknown Operator', f'Your command contains the unknown operator `{err.args}`. This is either your fault, or a massive internal issue! Please report this to the developers, thanks babygirl <3.')
-                
-                else:
-                    summary.set_header('Invalid command')
-                    if isinstance(err, parsing.errors.UnexpectedTokenError):
-                        summary.set_field('Unexpected token', f'Found unexpected token `{err.token.raw}`, in given command `{ctx.prefix}{ctx.command.name} {command.raw}`.')
-                    elif isinstance(err, parsing.errors.UnexpectedEOFError):
-                        summary.set_field('Unexpected EOF', f'Given command `{command.raw}` has floating operators.')
-                    else:
-                        raise err
+			# Parse command
+			try:
+				command = parsing.Command(raw, {}, thesaurus) # TODO import command dictionary from settings
+			except Exception as err:
+				if isinstance(err, parsing.errors.UnknownObjectError):
+					summary.set_header('Internal error')
+					summary.set_field('Unknown Object', f'Congratulations, you found a massive internal issue! Please report this to the developers, thanks babygirl <3.')
 
-                # Give feedback
-                await dialog.add(embed=summary.make_embed())
-                await dialog.cleanup()
-                ui.history.add(summary)
+				elif isinstance(err, parsing.errors.UnknownOperatorError):
+					summary.set_header('Internal error')
+					summary.set_field('Unknown Operator', f'Your command contains the unknown operator `{err.args}`. This is either your fault, or a massive internal issue! Please report this to the developers, thanks babygirl <3.')
 
-                return
+				else:
+					summary.set_header('Invalid command')
+					if isinstance(err, parsing.errors.ExpectedTokenError):
+						summary.set_field('Expected Token', f'Given command `{ctx.prefix}{ctx.command.name}{" " + raw if raw else ""}` is missing a token.')
+					elif isinstance(err, parsing.errors.UnexpectedOperatorError):
+						summary.set_field('Unexpected Operator', f'Given command `{ctx.prefix}{ctx.command.name}{" " + raw if raw else ""}` contains an unexpected operator.')
+					elif isinstance(err, parsing.errors.ExpectedOperatorError):
+						summary.set_field('Expected Operator', f'Given command `{ctx.prefix}{ctx.command.name}{" " + raw if raw else ""}` is missing an expected operator.')
+					else:
+						summary.set_field('Unknown Error', f'Given command `{ctx.prefix}{ctx.command.name}{" " + raw if raw else ""}` contains an unknown error.')			
 
-            # Match to signature
-            result = signature.match(command)
-            if not result.matched:
-                summary.set_header('Invalid command')
-                summary.set_field('Invalid command', f'Given command `{ctx.prefix}{ctx.command.name}{" " if command.raw else ""}{command.raw}` does not match the signature `{ctx.prefix}{ctx.command.name}{" " if signature.raw else ""}{signature.raw}`.')
-                
-                # Give feedback
-                await dialog.add(embed=summary.make_embed())
-                await dialog.cleanup()
-                ui.history.add(summary)
+				# Give feedback
+				summary.set_field('Usage', f'Given commands are expected to follow the following signature `{ctx.prefix}{ctx.command.name}{" " + signature.raw if signature.raw else ""}`.\nUse `{ctx.prefix}help {ctx.command.name}` for more information.')
+				await dialog.add(embed=summary.make_embed())
+				await dialog.cleanup()
+				ui.history.add(summary)
 
-                return
-        
-            # Warn about unmatched parameters, flags and variables
-            if result.unmatched_parameters:
-                summary.set_field('Irrellevant parameters', f'Given command `{ctx.prefix}{ctx.command.name} {command.raw}` contains irrellevant parameters: `{", ".join(result.unmatched_parameters)}`. These parameters will be ignored.')
-            if result.unmatched_flags:
-                summary.set_field('Irrellevant flags', f'Given command `{ctx.prefix}{ctx.command.name} {command.raw}` contains irrellevant flags: `{", ".join(result.unmatched_flags)}`. These flags will be ignored.')
-            if result.unmatched_variables:
-                summary.set_field('Irrellevant variables', f'Given command `{ctx.prefix}{ctx.command.name} {command.raw}` contains irrellevant variables: `{", ".join(result.unmatched_variables)}`. These variables will be ignored.')
+				return
 
-            # Invoke command
-            await func(self, ctx, dialog, summary, result.matched_parameters, result.matched_flags, result.matched_variables)
-            if summary.send_on_return and 'quiet' not in result.matched_flags:
-                if 'verbose' in result.matched_flags:
-                    await dialog.add(embed=summary.make_embed())
-                else:
-                    await dialog.add(summary.header)
+			# Match to signature
+			try:
+				matched, unmatched = signature.match(command)
+			except Exception as err:
+				if isinstance(err, parsing.errors.UnknownObjectError):
+					summary.set_header('Internal error')
+					summary.set_field('Unknown Object', f'Congratulations, you found a massive internal issue! Please report this to the developers, thanks babygirl <3.')
+				else:
+					summary.set_header('Invalid command')
+					if isinstance(err, parsing.errors.NoMatchError):
+						summary.set_field('No Matches', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` does not match the signature `{ctx.prefix}{ctx.command.name}{" " + signature.raw if signature.raw else ""}`.')
+					elif isinstance(err, parsing.errors.TooManyMatchesError):
+						summary.set_field('Too Many Matches', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` matches the signature `{ctx.prefix}{ctx.command.name}{" " + signature.raw if signature.raw else ""}` multiple times.')
+					else:
+						print(err)
+						summary.set_field('Unknown Error', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` contains an unknown error.')
 
-            await dialog.cleanup()
-            ui.history.add(summary)
+				# Give feedback
+				summary.set_field('Usage', f'Given commands are expected to follow the following signature `{ctx.prefix}{ctx.command.name}{" " + signature.raw if signature.raw else ""}`.\nUse `{ctx.prefix}help {ctx.command.name}` for more information.')
+				await dialog.add(embed=summary.make_embed())
+				await dialog.cleanup()
+				ui.history.add(summary)
 
-        wrapped.signature_command = True
-        return wrapped
-    return decorator
+				return
+
+			# Warn about unmatched parameters, flags and variables
+			if unmatched.parameters:
+				summary.set_field('Irrellevant parameters', f'Given command `{ctx.prefix}{ctx.command.name} {command.raw}` contains irrellevant parameters: `{", ".join(unmatched.parameters)}`. These parameters will be ignored.')
+			if unmatched.flags:
+				summary.set_field('Irrellevant flags', f'Given command `{ctx.prefix}{ctx.command.name} {command.raw}` contains irrellevant flags: `{", ".join(unmatched.flags)}`. These flags will be ignored.')
+			if unmatched.variables:
+				summary.set_field('Irrellevant variables', f'Given command `{ctx.prefix}{ctx.command.name} {command.raw}` contains irrellevant variables: `{", ".join(unmatched.variables)}`. These variables will be ignored.')
+			if unmatched.parameters or unmatched.flags or unmatched.variables:
+				summary.set_field('Usage', f'Given commands are expected to follow the following signature `{ctx.prefix}{ctx.command.name}{" " + signature.raw if signature.raw else ""}`.\nUse `{ctx.prefix}help {ctx.command.name}` for more information.')
+
+			# Invoke command
+			return_value = await func(self, ctx, dialog, summary, matched.parameters, matched.flags, matched.variables)
+			if summary.send_on_return and 'quiet' not in matched.flags:
+				if 'verbose' in matched.flags:
+					await dialog.add(embed=summary.make_embed())
+				else:
+					await dialog.add(summary.header)
+
+			await dialog.cleanup()
+			ui.history.add(summary)
+			return return_value
+		
+		wrapped.signature_command = True
+		return wrapped
+	return decorator
 
 def dev_only():
-    # Wraps around commands to make it dev only
-    #   - incoming func signature does not matter
-    #   - outgoing func signature does not change
-    #   - decorator MUST be placed below @bot.command() decorator
+	# Wraps around commands to make it dev only
+	#   - incoming func signature does not matter
+	#   - outgoing func signature does not change
+	#   - decorator MUST be placed below @bot.command() decorator
 
-    def predicate(ctx: commands.Context):
-        return str(ctx.author.id) in getenv('DEVELOPER_IDS')    
-    return commands.check(predicate)
+	def predicate(ctx: commands.Context):
+		return str(ctx.author.id) in getenv('DEVELOPER_IDS')
+	return commands.check(predicate)

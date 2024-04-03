@@ -1,5 +1,5 @@
 
 from . import errors
 
+from .signature import Signature, Matched, Unmatched
 from .command import Command
-from .signature import Signature, MatchResult
