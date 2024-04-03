@@ -1,6 +1,5 @@
 { 
     "version": 1,
-
     "formatters": { 
         "standard": { 
             "format": "%(asctime)s (%(name)s) %(levelname)s - %(message)s",
@@ -8,7 +7,7 @@
         }
     },
 
-    "handlers": { 
+    "handlers": {
         "console": { 
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stderr",
@@ -20,23 +19,17 @@
             "class": "logging.handlers.RotatingFileHandler",
             "filename": "logs/main.log",
             "formatter": "standard",
-            "maxBytes": 1000000,
+            "maxBytes": 1048576,
             "encoding": "utf8",
-            "backupCount": 10,
-            "level": "DEBUG",
-            "mode": "a"
+            "backupCount": 3,
+            "level": "DEBUG"
         }
     },
 
     "loggers": {
-        "": {
-            "handlers": ["console", "file"],
-            "level": "DEBUG"
-        },
-
-        "extension": {
+        "root": { 
             "handlers": ["console", "file"],
             "level": "DEBUG"
         }
-    } 
+    }
 }

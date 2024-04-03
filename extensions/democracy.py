@@ -8,8 +8,7 @@ import discord
 import pony.orm as pony
 from discord.ext import commands
 
-import lib.entities as entities
-import lib.utility.util as util
+from lib import entities, utility
 
 MAX_VOTE_OPTIONS = 5
 MAX_VOTE_WIDTH = 15

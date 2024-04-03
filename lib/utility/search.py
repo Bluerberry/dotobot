@@ -2,6 +2,7 @@
 # Native libraries
 import re as regex
 from typing import Any, Tuple
+from dataclasses import dataclass
 
 # Constants
 MIN_RELATIVE_OVERLAP = 0.5
@@ -13,17 +14,16 @@ FUZZY_DISTANCE_MARGIN = 3
 # ---------------------> External Classes
 
 
+@dataclass
 class SearchItem:
-	def __init__(self, item: Any, text: str) -> None:
-		self.item = item
-		self.text = text
-
-		self.sanitized         = None
-		self.overlap           = None
-		self.relative_overlap  = None
-		self.distance          = None
-		self.relative_distance = None
-		self.ranking           = None
+	item: Any
+	text: str
+	sanitized         : str   = None
+	overlap           : int   = None
+	relative_overlap  : float = None
+	distance          : int   = None
+	relative_distance : float = None
+	ranking           : int   = None
 
 
 # ---------------------> Internal Functions

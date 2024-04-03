@@ -152,7 +152,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 		await dialog.add(embed=target_summary.make_embed())
 
 	@commands.command(name='load', description='Loads extensions by name.')
-	@utility.signature_command(usage='<--all | (str-array) extensions> [--quiet | --verbose]', thesaurus={'a': 'all'})
+	@utility.signature_command(usage='<--all | (str-array) extensions> [--quiet | --verbose]', thesaurus={'all': ['a']})
 	@utility.dev_only()
 	async def load(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
@@ -205,7 +205,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 			summary.set_field('Extensions', field)
 
 	@commands.command(name='unload', description='Unloads extensions by name.')
-	@utility.signature_command(usage='<--all | (str-array) extensions> [--quiet | --verbose]', thesaurus={'a': 'all'})
+	@utility.signature_command(usage='<--all | (str-array) extensions> [--quiet | --verbose]', thesaurus={'all': ['a']})
 	@utility.dev_only()
 	async def unload(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
@@ -262,7 +262,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 			summary.set_field('Extensions', field)
 
 	@commands.command(name='reload', description='Reloads extensions by name.')
-	@utility.signature_command(usage='<--all | (str-array) extensions> [--quiet | --verbose]', thesaurus={'a': 'all'})
+	@utility.signature_command(usage='<--all | (str-array) extensions> [--quiet | --verbose]', thesaurus={'all': ['a']})
 	@utility.dev_only()
 	async def reload(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
@@ -315,8 +315,9 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 			summary.set_field('Extensions', field)
 
 	@commands.command(name='status', description='Displays extension statuses by name.')
-	@utility.signature_command(usage='<--all | (str-array) extensions> [--quiet | --verbose]', thesaurus={'a': 'all'})
+	@utility.signature_command(usage='<(str-array) extensions | --all> [--quiet | --verbose]', thesaurus={'all': ['a']})
 	async def status(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
+		print('entered command')
 		known  = list(utility.yield_extensions(prefix_path=True))
 		loaded = list(self.bot.extensions.keys())
 
@@ -375,7 +376,7 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 			log.error(err)
 
 	@commands.command(name='activity', description='Sets bot activity')
-	@utility.signature_command(usage='--random | <--playing="activity" | --watching="activity" | --listening="activity" | --competing="activity"> [--verbose | --quiet]', thesaurus={'r': 'random', 'p': 'playing', 'w': 'watching', 'l': 'listening', 'c': 'competing'})
+	@utility.signature_command(usage='<--random | --playing="activity" | --watching="activity" | --listening="activity" | --competing="activity"> [--verbose | --quiet]', thesaurus={'random': ['r'], 'playing': ['p'], 'watching': ['w'], 'listening': ['l'], 'competing': ['c']})
 	@utility.dev_only()
 	async def activity(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 

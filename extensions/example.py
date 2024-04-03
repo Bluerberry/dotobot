@@ -46,7 +46,7 @@ class Example(commands.Cog, name = name, description = 'An example extension'):
 	def __init__(self, bot: commands.Bot) -> None:
 		self.bot = bot
 
-	@commands.command(name='example', description = 'An example command')
+	@commands.command(name='example', aliases=['ex', ' test'], description='An example command')
 	@utility.signature_command(usage='<(int) required> [--optional]')
 	async def example(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 		await ctx.send(f'{params}\n{flags}\n{vars}')

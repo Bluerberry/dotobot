@@ -22,7 +22,6 @@ class ContinueAbortMenu(discord.ui.View):
 
 	async def await_response(self) -> bool:
 		await self.responded.wait()
-		self.disable_all_items()
 		return self.result
 
 	@discord.ui.button(label='Continue', style=discord.ButtonStyle.green, emoji='🚶‍♂️')
@@ -32,6 +31,7 @@ class ContinueAbortMenu(discord.ui.View):
 			return
 
 		await interaction.response.defer()
+		self.disable_all_items()
 		self.result = True
 		self.responded.set()
 
@@ -42,6 +42,7 @@ class ContinueAbortMenu(discord.ui.View):
 			return
 
 		await interaction.response.defer()
+		self.disable_all_items()
 		self.result = False
 		self.responded.set()
 

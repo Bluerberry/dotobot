@@ -100,7 +100,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
 
 	@commands.group(name='quote', aliases=['q'], description='Subgroup for quote functionality', invoke_without_command=True)
-	@utility.signature_command(usage='<(int-array) quoteIDs | --all | [(int) --start=startID] [(int) --stop=stopID]> [--quiet | --verbose]', thesaurus={'a': 'all'})
+	@utility.signature_command(usage='<(int-array) quoteIDs | --all | <(int) --start=startID / (int) --stop=stopID>> [--quiet | --verbose]', thesaurus={'all': ['a']})
 	async def quote(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Get quotes
@@ -146,7 +146,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 		summary.set_field(f'Quote', str(db_quote))
 
 	@quote.command(name='search', description='Searches through quotes')
-	@utility.signature_command(usage='<[(any-array) --content=content] [(any-array) --author=author]> [--exact | --contains | --fuzzy] [--quiet | --verbose]', thesaurus={'e': 'exact', 'c': 'contains', 'f': 'fuzzy'})
+	@utility.signature_command(usage='<(str) --content="content" / (str) --author="author"> [--exact | --contains | --fuzzy] [--quiet | --verbose]', thesaurus={'exact': ['e'], 'contains': ['c'], 'fuzzy': ['f']})
 	async def search(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Get quotes
@@ -234,7 +234,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
 	@quote.command(name='remove', aliases=['del', 'delete'], description='Removes quotes')
 	@commands.has_permissions(administrator=True)
-	@utility.signature_command(usage='<(int-array) quoteIDs | --all> [--force] [--quiet | --verbose]', thesaurus={'a': 'all', 'f': 'force'})
+	@utility.signature_command(usage='<(int-array) quoteIDs | --all> [--force] [--quiet | --verbose]', thesaurus={'all': ['a'],	'force': ['f']})
 	async def remove(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Get quotes
@@ -290,9 +290,8 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
 	@quote.command(name='edit', description='Edits quotes')
 	@commands.has_permissions(administrator=True)
-	@utility.signature_command(usage='<(int) quoteID> [(str) --content=content] [(str) --author=content] [--quiet | --verbose]')
+	@utility.signature_command(usage='<(int) quoteID> <(str) --content="new content" / (str) --author="new author"> [--quiet | --verbose]')
 	async def edit(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
-
 		with pony.db_session:
 
 			# Get quote

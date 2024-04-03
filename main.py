@@ -1,7 +1,7 @@
 
 # Native libraries
 import json, logging, os
-import logging.config
+from logging.config import dictConfig
 
 # External libraries
 import dotenv, discord
@@ -16,9 +16,9 @@ from lib import entities, utility
 
 
 # Logging
-log = logging.getLogger('main')
 with open('logConfig.json') as file:
-	logging.config.dictConfig(json.load(file))
+	dictConfig(json.load(file))
+log = logging.getLogger('root')
 
 # Environment variables
 dotenv.load_dotenv()

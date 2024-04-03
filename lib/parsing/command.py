@@ -1,162 +1,160 @@
 
-# Native libraries
-from typing import Any
-from copy import deepcopy
+from __future__ import annotations
 
-# Local libraries
-from . import errors, core, signature
+# Native imports
+from copy import deepcopy
+from dataclasses import dataclass
+from typing import Any, Literal
+from functools import singledispatchmethod as overload
+
+# Local imports
+from . import typecasting, errors, tokenizer, signature
 
 # Constants
-DEFAULT_DICTIONARY = {
-	'flag-indicator':     '--',
+DEFAULT_COMMAND_OPERATORS = {
+	'flag-indicator': '--',
 	'variable-indicator': '=',
-	'long-parameter-indicator': '"'	
-}
-
-DEFAULT_THESAURUS = {
-    'q': 'quiet',
-    'v': 'verbose'
-}
+	'long-parameter-indicator': '"'
+	}
 
 
-# ---------------------> Internal Classes
+# ---------------------> Dataclasses
 
 
-class _Parameter(core._Token):
-	def __init__(self, value: Any, type: core._Types) -> None:
-		self.value = value
-		self.type = type
+class Token:
+	...
 
-	def __eq__(self, other: object) -> bool:
-		if isinstance(other, _Parameter):
-			return self.value == other.value and self.type == other.type
-		elif isinstance(other, signature._Parameter):
-			return self.type == core._Types.ANY or other.type == core._Types.ANY or self.type == other.type
-		return False
+@dataclass
+class Parameter(Token):
+	value      : Any
+	value_type : Literal['str', 'int', 'float', 'bool']
 
-class _Flag(core._Token):
-	def __init__(self, label: str) -> None:
-		self.label = label
+	def fits(self, slot: signature.Parameter) -> bool:
+		"""Checks if the parameter fits the slot."""
 
-	def __eq__(self, other: object) -> bool:
-		if isinstance(other, (signature._Flag, _Flag)):
-			return self.label == other.label
-		return False
+		return slot.value_type == 'any' or slot.value_type == self.value_type
 
-class _Variable(core._Token):
-	def __init__(self, label: str, value: Any, type: core._Types) -> None:
-		self.type = type
-		self.label = label
-		self.value = value
+@dataclass
+class Flag(Token):
+	key : str
 
-	def __eq__(self, other: object) -> bool:
-		if isinstance(other, _Variable):
-			return self.label == other.label and self.value == other.value and self.type == other.type
-		elif isinstance(other, signature._Variable):
-			return self.label == other.label and (self.type == core._Types.ANY or other.type == core._Types.ANY or self.type == other.type)
-		return False
+	def fits(self, slot: signature.Flag) -> bool:
+		"""Checks if the flag fits the slot."""
+
+		return slot.key == self.key
+
+@dataclass
+class Variable(Token):
+	key        : str
+	value      : Any
+	value_type : Literal['str', 'int', 'float', 'bool']
+
+	def fits(self, slot: signature.Variable) -> bool:
+		"""Checks if the variable fits the slot."""
+
+		return slot.key == self.key and (slot.value_type == 'any' or slot.value_type == self.value_type)
 
 
-# ---------------------> External Classes
+# ---------------------> Classes
 
 
 class Command:
-	def __init__(self, raw: str, dictionary: dict[str, str], thesaurus: dict[str, str]) -> None:
-		self.dictionary = deepcopy(DEFAULT_DICTIONARY)
-		self.dictionary.update(dictionary)
-		self.thesaurus = deepcopy(DEFAULT_THESAURUS)
-		self.thesaurus.update(thesaurus)
-		self.raw = raw
+	def __init__(self, raw: str, operators: dict[str, str] = {}, thesaurus: dict[str, list[str]] = {}) -> None:
 
-		tokens = core._tokenize(raw, self.dictionary)
-		self.__validate_tokens(tokens)
-		self.tokens = self.__parse_tokens(tokens)
+		# Declare variables
+		self.raw        : str = raw
+		self.thesaurus  : dict[str, list[str]] = thesaurus
+		self.parameters : list[Parameter] = []
+		self.flags      : list[Flag]      = []
+		self.variables  : list[Variable]  = []
+		self.operators  : dict[str, str] = deepcopy(DEFAULT_COMMAND_OPERATORS)
+		self.operators.update(operators)
 
-	def __validate_tokens(self, tokens: list[core._Token]) -> None:
-		allow_token              = True
-		allow_variable_seperator = False
-		allow_flag_indicator     = True
-		variable_possible        = False
-		expect_something         = False
 
-		for token in tokens:
-			if isinstance(token, core._Operator):
-				if token.type == 'flag-indicator':
-					if not allow_flag_indicator:
-						raise errors.UnexpectedTokenError(token)
+		# Parse
+		tokens = tokenizer.tokenize(self.raw, self.operators)
+		self.__parse_command(tokens)
 
-					# Enforce token structure
-					allow_token              = True
-					allow_variable_seperator = False
-					allow_flag_indicator     = False
-					variable_possible        = True
-					expect_something         = True
+	def __get_synonym(self, key: str) -> str:
+		"""Returns the synonym of a key from a thesaurus."""
 
-				elif token.type == 'variable-indicator':
-					if not allow_variable_seperator:
-						raise errors.UnexpectedTokenError(token)
+		for synonym, keys in self.thesaurus.items():
+			if key in keys:
+				return synonym
+		return key
 
-					# Enforce token structure
-					allow_token              = True
-					allow_variable_seperator = False
-					allow_flag_indicator     = False
-					variable_possible        = False
-					expect_something         = True
+	def __parse_command(self, tokens: list[tokenizer.Token]) -> None:
+		"""Parses the tokens of user input into parameters, flags and variables."""
 
+		while tokens:
+			token = tokens.pop(0)
+			if type(token) == tokenizer.Operator:
+
+				# Handle flag operator
+				if token.operator == 'flag-indicator':
+
+					# Collect key
+					if not tokens:
+						raise errors.ExpectedTokenError()
+					token = tokens.pop(0)
+					if type(token) == tokenizer.Operator:
+						raise errors.ExpectedTokenError()
+					key = self.__get_synonym(token.raw)
+
+					# Handle variable flag
+					if tokens and type(tokens[0]) == tokenizer.Operator and tokens[0].operator == 'variable-indicator':
+						tokens.pop(0) # Consume variable-indicator
+
+						# Collect value
+						if not tokens:
+							raise errors.ExpectedTokenError()
+						token = tokens.pop(0)
+						if type(token) == tokenizer.Operator:
+							raise errors.ExpectedTokenError()
+						value = token.raw
+
+						# Make variable
+						value, value_type = typecasting.cast(value)
+						self.variables.append(Variable(key, value, value_type))
+						continue
+
+					# Make flag
+					self.flags.append(Flag(key))
+
+				# Handle unknown operators
 				else:
-					raise errors.UnknownOperatorError(token)
+					raise errors.UnknownOperatorError(token.operator)
 
-			elif isinstance(token, core._Token):
-				if not allow_token:
-					raise errors.UnexpectedTokenError(token)
-
-				# Enforce token structure
-				allow_token              = True
-				allow_variable_seperator = variable_possible
-				allow_flag_indicator     = True
-				variable_possible        = False
-				expect_something         = False
-
+			# Handle parameter
+			elif type(token) == tokenizer.Token:
+				value, value_type = typecasting.cast(token.raw)
+				self.parameters.append(Parameter(value, value_type))
+			
+			# Handle unknown tokens
 			else:
 				raise errors.UnknownObjectError(token)
 
-		if expect_something:
-			raise errors.UnexpectedEOFError()
+	def override(self, command: Command) -> None:
+		"""Overrides the parameters, flags and variables of the command with the parameters, flags and variables of another command."""
 
-	def __parse_tokens(self, tokens: list[core._Token]) -> list[core._Token]:
-		if not tokens:
-			return []
+		self.parameters = command.parameters
+		self.flags      = command.flags
+		self.variables  = command.variables
 
-		parameters, other = [], []
-		index = 0
+	@overload
+	def remove(self, obj: Any) -> None:
+		"""Remove a parameter, flag or variable from the command."""
 
-		while index < len(tokens):
-			if isinstance(tokens[index], core._Operator):
-				if tokens[index].type == 'flag-indicator':
+		raise TypeError(f'Expected Parameter, Flag or Variable, got {type(obj)}')
 
-					# Collect label
-					label = tokens[index + 1].raw
-					if label in self.thesaurus:
-						label = self.thesaurus[label]
+	@remove.register
+	def _(self, obj: Parameter) -> None:
+		self.parameters.remove(obj)
 
-					# Collect variable
-					if index + 2 < len(tokens) and isinstance(tokens[index + 2], core._Operator) and tokens[index + 2].type == 'variable-indicator':
-						value, type = core._Types.convert(tokens[index + 3].raw)
-						other.append(_Variable(label, value, type))
-						index += 4
+	@remove.register
+	def _(self, obj: Flag) -> None:
+		self.flags.remove(obj)
 
-					# Collect flag
-					else:
-						other.append(_Flag(label))
-						index += 2
-
-			# Collect parameter
-			else:
-				value, type = core._Types.convert(tokens[index].raw)
-				parameters.append(_Parameter(value, type))
-				index += 1
-
-		return parameters + other
-	
-	def match(self, signature: signature.Signature) -> signature.MatchResult:
-		return signature.match(self.tokens)
+	@remove.register
+	def _(self, obj: Variable) -> None:
+		self.variables.remove(obj)

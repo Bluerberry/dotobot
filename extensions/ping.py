@@ -177,7 +177,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
 
 	@commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
-	@utility.signature_command(usage='<(any-array) pinggroup> [--quiet | --verbose]')
+	@utility.signature_command(usage='<(long-string) pinggroup> [--quiet | --verbose]')
 	async def ping(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Update ping groups
@@ -222,7 +222,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 		summary.set_field('Subscribers', '\n'.join([user.name for user in discord_users]))
 
 	@ping.command(name='setup', description='Ping setup')
-	@utility.signature_command(usage='<(int) steamID64> [--force] [--quiet | --verbose]', thesaurus={'f': 'force'})
+	@utility.signature_command(usage='<(int) steamID64> [--force] [--quiet | --verbose]', thesaurus={'force': ['f']})
 	async def setup(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Validate SteamID
@@ -233,8 +233,8 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
 		except steam.errors.UserNotFoundError:
 			summary.set_header('Invalid SteamID')
-			summary.set_field('ValueError', f'SteamID `{params['steamID64']}` could not be found. Make sure you provide your Steam ID64, found in your profile url.')
-			log.warn(f'Invalid SteamID: `{params['steamID64']}`')
+			summary.set_field('ValueError', f'SteamID `{params["steamID64"]}` could not be found. Make sure you provide your Steam ID64, found in your profile url.')
+			log.warn(f'Invalid SteamID: `{params["steamID64"]}`')
 			return
 
 		# Link Steam account
@@ -273,7 +273,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 		log.info(f'Succesfully linked Steam account `{steam_user.name}` ({steam_user.id64}) to user `{ctx.author.name}` ({ctx.author.id})')
 
 	@ping.command(name='subscribe', description='Subscribe to a ping group')
-	@utility.signature_command(usage='<(any-array) pinggroup> [--quiet | --verbose]')
+	@utility.signature_command(usage='<(long-string) pinggroup> [--quiet | --verbose]')
 	async def subscribe(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Update ping groups
@@ -314,7 +314,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 			summary.set_header(f'Succesfully subscribed to ping group `{db_pingGroup.name}`')
 
 	@ping.command(name='unsubscribe', description='Unsubscribe from a ping group')
-	@utility.signature_command(usage='<(any-array) pinggroup> [--quiet | --verbose]')
+	@utility.signature_command(usage='<(long-string) pinggroup> [--quiet | --verbose]')
 	async def unsubscribe(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Update ping groups
@@ -354,7 +354,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 				summary.header(f'User was never subscribed to `{db_pingGroup.name}`')
 
 	@ping.command(name='add', description='Add a ping group')
-	@utility.signature_command(usage='<(any-array) name> [--quiet | --verbose]')
+	@utility.signature_command(usage='<(long-string) name> [--quiet | --verbose]')
 	async def add(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Update pings
@@ -369,9 +369,9 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
 			# If conclusive, there is another ping group with a conflicting name
 			if conclusive:
-				log.warn(f'Failed to create ping group by name of `{params['name']}` due to conflicting ping group `{results[0]['name']}`')
+				log.warn(f'Failed to create ping group by name of `{params["name"]}` due to conflicting ping group `{results[0]["name"]}`')
 				summary.set_header('Failed to create ping group')
-				summary.set_field('Conflicting name', f'There already is a similar ping group with the name `{results[0]['name']}`. If your new ping group targets a different audience, try giving it a different name. Stupid.')
+				summary.set_field('Conflicting name', f'There already is a similar ping group with the name `{results[0]["name"]}`. If your new ping group targets a different audience, try giving it a different name. Stupid.')
 				return
 
 			# Create new ping group
@@ -381,7 +381,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 		summary.set_header(f'Successfully created ping group `{pingGroup.name}`')
 
 	@ping.command(name='delete', description='Delete a ping group')
-	@utility.signature_command(usage='<(any-array) pinggroup> [--quiet | --verbose]')
+	@utility.signature_command(usage='<(long-string) pinggroup> [--quiet | --verbose]')
 	@utility.dev_only()
 	async def delete(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
