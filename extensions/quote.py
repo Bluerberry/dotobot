@@ -100,7 +100,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
 
 	@commands.group(name='quote', aliases=['q'], description='Subgroup for quote functionality', invoke_without_command=True)
-	@utility.signature_command(usage='<(int-array) quoteIDs | --all | <(int) --start=startID / (int) --stop=stopID>> [--quiet | --verbose]', thesaurus={'all': ['a']})
+	@utility.signature_command(usage='<(int-array) quoteIDs | <(int) --start=startID / (int) --stop=stopID> | --all> [--quiet | --verbose]', thesaurus={'all': ['a']})
 	async def quote(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Get quotes
@@ -109,23 +109,22 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 				log.debug(f'Following --all branch for {ctx.prefix}{ctx.command}')
 				quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id))
 
+			elif 'start' in vars or 'stop' in vars:
+				log.debug(f'Following --start/stop branch for {ctx.prefix}{ctx.command}')
+				highest_id = self.get_highest_id(ctx.guild.id)
+				start, stop = 1, highest_id
+
+				# Pythonic slicing
+				if 'start' in vars:
+					start = vars['start'] if vars['start'] >= 0 else highest_id + vars['start'] + 1
+				if 'stop' in vars:
+					stop = vars['stop'] if vars['stop'] >= 0 else highest_id + vars['stop'] + 1
+
+				quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and start <= quote.quote_id and quote.quote_id <= stop))
+
 			else:
-				if 'start' in vars or 'stop' in vars:
-					log.debug(f'Following --start/stop branch for {ctx.prefix}{ctx.command}')
-					highest_id = self.get_highest_id(ctx.guild.id)
-					start, stop = 0, highest_id
-
-					# Pythonic slicing
-					if 'start' in vars:
-						start = vars['start'] if vars['start'] >= 0 else highest_id + vars['start']
-					if 'stop' in vars:
-						stop = vars['stop'] if vars['stop'] >= 0 else highest_id + vars['stop']
-
-					quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and start <= quote.quote_id and quote.quote_id <= stop))
-
-				else:
-					log.debug(f'Following parameter branch for {ctx.prefix}{ctx.command}')
-					quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and quote.quote_id in params))
+				log.debug(f'Following parameter branch for {ctx.prefix}{ctx.command}')
+				quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and quote.quote_id in params['quoteIDs']))
 
 		# Display quotes
 		await self.display_quotes(dialog, summary, quotes)
@@ -148,6 +147,8 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 	@quote.command(name='search', description='Searches through quotes')
 	@utility.signature_command(usage='<(str) --content="content" / (str) --author="author"> [--exact | --contains | --fuzzy] [--quiet | --verbose]', thesaurus={'exact': ['e'], 'contains': ['c'], 'fuzzy': ['f']})
 	async def search(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
+
+		dialog.set('Searching for quotes...')
 
 		# Get quotes
 		with pony.db_session:
@@ -234,7 +235,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
 	@quote.command(name='remove', aliases=['del', 'delete'], description='Removes quotes')
 	@commands.has_permissions(administrator=True)
-	@utility.signature_command(usage='<(int-array) quoteIDs | --all> [--force] [--quiet | --verbose]', thesaurus={'all': ['a'],	'force': ['f']})
+	@utility.signature_command(usage='<(int-array) quoteIDs | <(int) --start=startID / (int) --stop=stopID> | --all> [--force] [--quiet | --verbose]', thesaurus={'all': ['a'],	'force': ['f']})
 	async def remove(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Get quotes
@@ -242,6 +243,19 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 			if 'all' in flags:
 				log.debug(f'Following --all branch for {ctx.prefix}{ctx.command}')
 				quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id))
+
+			elif 'start' in vars or 'stop' in vars:
+				log.debug(f'Following --start/stop branch for {ctx.prefix}{ctx.command}')
+				highest_id = self.get_highest_id(ctx.guild.id)
+				start, stop = 0, highest_id
+
+				# Pythonic slicing
+				if 'start' in vars:
+					start = vars['start'] if vars['start'] >= 0 else highest_id + vars['start']
+				if 'stop' in vars:
+					stop = vars['stop'] if vars['stop'] >= 0 else highest_id + vars['stop']
+
+				quotes = list(entities.Quote.select(lambda quote: quote.guild_id == ctx.guild.id and start <= quote.quote_id and quote.quote_id <= stop))
 
 			else:
 				log.debug(f'Following parameter branch for {ctx.prefix}{ctx.command}')
@@ -290,7 +304,7 @@ class Quote(commands.Cog, name=name, description='Manages the quote database'):
 
 	@quote.command(name='edit', description='Edits quotes')
 	@commands.has_permissions(administrator=True)
-	@utility.signature_command(usage='<(int) quoteID> <(str) --content="new content" / (str) --author="new author"> [--quiet | --verbose]')
+	@utility.signature_command(usage='(int) quoteID <(str) --content="new content" / (str) --author="new author"> [--quiet | --verbose]')
 	async def edit(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 		with pony.db_session:
 

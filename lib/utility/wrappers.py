@@ -19,7 +19,7 @@ FLAG_FILTER = r'-- ?([^ ]+)'
 DEFAULT_COMMAND_THESAURUS = {
 	'quiet': ['q'],
 	'verbose': ['v'],
-	}
+}
 
 
 # ---------------------> Environment setup
@@ -166,6 +166,7 @@ def signature_command(usage: str = '', thesaurus: dict[str, list[str]] = {}):
 					elif isinstance(err, parsing.errors.TooManyMatchesError):
 						summary.set_field('Too Many Matches', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` matches the signature `{ctx.prefix}{ctx.command.name}{" " + signature.raw if signature.raw else ""}` multiple times.')
 					else:
+						print(err)
 						summary.set_field('Unknown Error', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` contains an unknown error.')
 
 				# Give feedback

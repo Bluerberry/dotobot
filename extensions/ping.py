@@ -31,7 +31,7 @@ class SelectPingGroup(discord.ui.Select):
 	def __init__(self, parent: discord.ui.View, options: list[entities.PingGroup], *args, **kwargs) -> None:
 		super().__init__(
 			placeholder='Select a ping group',
-			options=[discord.SelectOption(label=option.name, value=option) for option in options],
+			options=[discord.SelectOption(label=option.name, value=str(option.id)) for option in options],
 			*args, **kwargs
 		)
 
@@ -45,8 +45,6 @@ class SelectPingGroup(discord.ui.Select):
 			return
 
 		await interaction.response.defer()
-		self.parent.result = self.values[0]
-		self.parent.resolved.set()
 
 class VaguePingGroup(discord.ui.View):
 	def __init__(self, authorised_user: discord.User, options: list[entities.PingGroup], *args, **kwargs) -> None:
@@ -56,10 +54,10 @@ class VaguePingGroup(discord.ui.View):
 		self.result = None
 
 		# Create select menu
-		select = SelectPingGroup(self, options)
-		self.add_item(select)
+		self.select = SelectPingGroup(self, options)
+		self.add_item(self.select)
 
-	async def await_resolution(self) -> None | entities.PingGroup:
+	async def await_resolution(self) -> entities.PingGroup | None:
 		await self.resolved.wait()
 		self.disable_all_items()
 		return self.result
@@ -73,6 +71,19 @@ class VaguePingGroup(discord.ui.View):
 			return
 
 		await interaction.response.defer()
+		self.resolved.set()
+	
+	@discord.ui.button(label='Resolve', style=discord.ButtonStyle.green, emoji='👍', row=1)
+	async def resolve(self, _, interaction: discord.Interaction) -> None:
+		
+		# Only authorised users can interact
+		if interaction.user != self.authorised_user:
+			await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
+			return
+
+		await interaction.response.defer()
+		with pony.db_session:
+			self.result = entities.PingGroup.get(id=int(self.select.values[0]))
 		self.resolved.set()
 
 
@@ -138,11 +149,14 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 				if summary and new:
 					summary.set_field('New ping groups', f'Created {new} new ping group(s). For specifics, consult the logs.')
 
-	async def find_pinggroup(self, query: str, dialog: utility.Dialog, summary: utility.Summary) -> int | None:
+	async def find_pinggroup(self, query: str, dialog: utility.Dialog, summary: utility.Summary) -> entities.PingGroup | None:
 
 		# Search ping groups
 		with pony.db_session:
-			options = pony.select(utility.SearchItem(pg, pg.name) for pg in entities.PingGroup)
+			options = []
+			for pg in pony.select(pg for pg in entities.PingGroup):
+				options.append(utility.SearchItem(pg, pg.name))
+
 			conclusive, results = utility.fuzzy_search(options, query)
 
 			if not results:
@@ -154,7 +168,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 			if conclusive:
 				pingGroup = results[0].item
 				log.debug(f'Search results were conclusive, found ping group `{pingGroup.name}`')
-				return pingGroup.id
+				return pingGroup
 
 			# Results weren't conclusive, send VaguePingGroup menu
 			else:
@@ -170,14 +184,14 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 					return
 
 				log.debug(f'User chose `{pingGroup.name} from inconclusive search results')
-				return pingGroup.id
+				return pingGroup
 
 
 	# ---------------------> Commands
 
 
 	@commands.group(name='ping', description='Better ping utility', invoke_without_command=True)
-	@utility.signature_command(usage='<(long-string) pinggroup> [--quiet | --verbose]')
+	@utility.signature_command(usage='<(long-string) name> [--quiet | --verbose]')
 	async def ping(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Update ping groups
@@ -188,7 +202,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 		with pony.db_session:
 
 			# Find ping group
-			db_pingGroup = await self.find_pinggroup(params['pinggroup'], dialog, summary)
+			db_pingGroup = await self.find_pinggroup(' '.join(params['name']), dialog, summary)
 			if not db_pingGroup:
 				return
 
@@ -211,7 +225,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 				f'The definition of insanity is launching {db_pingGroup.name} and expecting success. Let\'s go insane.\n',
 				f'Whats more important, working on your future or joining {db_pingGroup.name}? Exactly.\n',
 				f'The ping extention wasted weeks of my life, so thank you for using it. Lets play {db_pingGroup.name}!\n',
-				f'Vamos a la {db_pingGroup.name}, oh ohhhhhhhh yeah!\n',
+				f'Los gezelligitos, donde esta genietos? Ah! Costa del {db_pingGroup.name}.\n',
 				f'Inspiratie is voor de inspiratielozen. Something something {db_pingGroup.name}.\n'
 			]) + ' '.join([user.mention for user in discord_users])
 
@@ -273,7 +287,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 		log.info(f'Succesfully linked Steam account `{steam_user.name}` ({steam_user.id64}) to user `{ctx.author.name}` ({ctx.author.id})')
 
 	@ping.command(name='subscribe', description='Subscribe to a ping group')
-	@utility.signature_command(usage='<(long-string) pinggroup> [--quiet | --verbose]')
+	@utility.signature_command(usage='<(long-string) name> [--quiet | --verbose]')
 	async def subscribe(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Update ping groups
@@ -286,35 +300,38 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
 			# Find ping group
 			db_user = entities.User.get(discord_id=ctx.author.id)
-			db_pingGroup = await self.find_pinggroup(params['pinggroup'], dialog, summary)
+			db_pingGroup = await self.find_pinggroup(' '.join(params['name']), dialog, summary)
 			if not db_pingGroup:
 				return
-
-			# Check if user is manually subscribed
-			if db_pingGroup.id in db_user.whitelisted_pings:
-				summary.set_header('User already subscribed', f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-				log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-				return
-
-			# Check if user is automatically subscribed
-			if db_pingGroup.steam_id and db_user.steam_id:
-				steam_user = self.steam_client.getUser(db_user.steam_id)
-				if db_pingGroup.steam_id in [game.id for game in steam_user.games]:
-					summary.set_header('User already subscribed', f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-					log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
-					return
-
-			# Subscribe user to ping group
-			db_user.whitelisted_pings.append(db_pingGroup.id)
+			
 			if db_pingGroup.id in db_user.blacklisted_pings:
 				db_user.blacklisted_pings.remove(db_pingGroup.id)
 
+			else:
+
+				# Check if user is manually subscribed
+				if db_pingGroup.id in db_user.whitelisted_pings:
+					summary.set_field('User already subscribed', f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+					log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+					return
+
+				# Check if user is automatically subscribed
+				if db_pingGroup.steam_id and db_user.steam_id:
+					steam_user = self.steam.getUser(db_user.steam_id)
+					if db_pingGroup.steam_id in [game.id for game in steam_user.games]:
+						summary.set_field('User already subscribed', f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+						log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) already subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+						return
+
+				# Subscribe user to ping group
+				db_user.whitelisted_pings.append(db_pingGroup.id)
+
 			# Cleanup
-			log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+			log.info(f'User `{ctx.author.name}` ({ctx.author.id}) subscribed to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
 			summary.set_header(f'Succesfully subscribed to ping group `{db_pingGroup.name}`')
 
 	@ping.command(name='unsubscribe', description='Unsubscribe from a ping group')
-	@utility.signature_command(usage='<(long-string) pinggroup> [--quiet | --verbose]')
+	@utility.signature_command(usage='<(long-string) name> [--quiet | --verbose]')
 	async def unsubscribe(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
 		# Update ping groups
@@ -328,29 +345,35 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 			# Find ping group
 			unsubscribed = False
 			db_user = entities.User.get(discord_id=ctx.author.id)
-			db_pingGroup = await self.find_pinggroup(params['pinggroup'], dialog, summary)
+			db_pingGroup = await self.find_pinggroup(' '.join(params['name']), dialog, summary)
 			if not db_pingGroup:
+				return
+			
+			# Check if pingroup is already blacklisted
+			if db_pingGroup.id in db_user.blacklisted_pings:
+				log.info(f'User `{ctx.author.name}` ({ctx.author.id}) already blacklisted ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+				summary.set_header(f'User already blacklisted `{db_pingGroup.name}`')
 				return
 
 			# Check if user is manually subscribed
 			if db_pingGroup.id in db_user.whitelisted_pings:
 				db_user.whitelisted_pings.remove(db_pingGroup.id)
-				log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) unsubscribed from ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+				log.info(f'User `{ctx.author.name}` ({ctx.author.id}) unsubscribed from ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
 				summary.set_header(f'User succesfully unsubscribed from `{db_pingGroup.name}`')
 				unsubscribed = True
 
 			# Check if user is automatically subscribed
 			if db_pingGroup.steam_id and db_user.steam_id:
-				steam_user = self.steam_client.getUser(db_user.steam_id)
+				steam_user = self.steam.getUser(db_user.steam_id)
 				if db_pingGroup.steam_id in [game.id for game in steam_user.games]:
 					db_user.blacklisted_pings.append(db_pingGroup.id)
-					log.info(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) blacklisted ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+					log.info(f'User `{ctx.author.name}` ({ctx.author.id}) blacklisted ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
 					summary.set_header(f'User succesfully blacklisted `{db_pingGroup.name}`')
 					unsubscribed = True
 
 			# Check if user was subscribed in the first place
 			if not unsubscribed:
-				log.warning(f'User `{self.ctx.author.name}` ({self.ctx.author.id}) was never subscribed ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+				log.warning(f'User `{ctx.author.name}` ({ctx.author.id}) was never subscribed ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
 				summary.header(f'User was never subscribed to `{db_pingGroup.name}`')
 
 	@ping.command(name='add', description='Add a ping group')
@@ -364,24 +387,28 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 
 		# Search ping groups
 		with pony.db_session:
-			options = pony.select(pg.name for pg in entities.PingGroup)
-			conclusive, results = utility.fuzzy_search(options, params['name'])
+			name = ' '.join(params['name'])
+			
+			options = []
+			for pg in pony.select(pg for pg in entities.PingGroup):
+				options.append(utility.SearchItem(pg, pg.name))
+			conclusive, results = utility.fuzzy_search(options, name)
 
 			# If conclusive, there is another ping group with a conflicting name
 			if conclusive:
-				log.warn(f'Failed to create ping group by name of `{params["name"]}` due to conflicting ping group `{results[0]["name"]}`')
+				log.warn(f'Failed to create ping group by name of `{name}` due to conflicting ping group `{results[0].text}`')
 				summary.set_header('Failed to create ping group')
-				summary.set_field('Conflicting name', f'There already is a similar ping group with the name `{results[0]["name"]}`. If your new ping group targets a different audience, try giving it a different name. Stupid.')
+				summary.set_field('Conflicting name', f'There already is a similar ping group with the name `{results[0].text}`. If your new ping group targets a different audience, try giving it a different name. Stupid.')
 				return
 
 			# Create new ping group
-			pingGroup = entities.PingGroup(name=params['name'])
+			pingGroup = entities.PingGroup(name=name)
 
 		log.info(f'Created new ping group `{pingGroup.name}` ({pingGroup.id}) at the request of user `{ctx.author.name}` ({ctx.author.id})')
 		summary.set_header(f'Successfully created ping group `{pingGroup.name}`')
 
 	@ping.command(name='delete', description='Delete a ping group')
-	@utility.signature_command(usage='<(long-string) pinggroup> [--quiet | --verbose]')
+	@utility.signature_command(usage='<(long-string) name> [--quiet | --verbose]')
 	@utility.dev_only()
 	async def delete(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 
@@ -393,7 +420,7 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 		with pony.db_session:
 
 			# Find ping group
-			db_pingGroup = await self.find_pinggroup(params['pinggroup'], dialog, summary)
+			db_pingGroup = await self.find_pinggroup(' '.join(params['name']), dialog, summary)
 			if not db_pingGroup:
 				return
 

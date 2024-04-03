@@ -342,19 +342,23 @@ class Signature:
 				if slot.is_array:
 					values = []
 
-					while cmd.parameters and cmd.parameters[0].fits(slot):
-						values.append(parameter)
-						cmd.remove(parameter)
+					while cmd.parameters:
+						parameter = cmd.parameters[0]
+						if parameter.fits(slot):
+							values.append(parameter)
+							cmd.remove(parameter)
 
 					if values:
 						matched.add(slot, values)
 						return True
 
 				# Handle single parameters
-				elif cmd.parameters and cmd.parameters[0].fits(slot):
-					matched.add(slot, cmd.parameters[0])
-					cmd.remove(cmd.parameters[0])
-					return True
+				elif cmd.parameters:
+					parameter = cmd.parameters[0]	
+					if parameter.fits(slot):
+						matched.add(slot, parameter)
+						cmd.remove(parameter)
+						return True
 
 			# Handle flags
 			elif type(slot) == Flag:
