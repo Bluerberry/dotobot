@@ -12,6 +12,7 @@ requests = "^2.31.0"
 python-dotenv = "^1.0.0"
 psycopg2 = "^2.9.9"
 py-cord = "^2.4.1"
+asyncio = "^3.4.3"
 
 [build-system]
 requires = ["poetry-core"]
