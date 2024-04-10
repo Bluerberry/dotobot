@@ -77,6 +77,9 @@ class ANSIFactory:
 
 	def __str__(self) -> str:
 		return self.text + '[0m```'
+	
+	def newline(self) -> None:
+		self.text += '\n'
 
 	def add_raw(self, text: str) -> None:
 		self.text += text
@@ -150,7 +153,7 @@ class Summary:
 
 		embed = DefaultEmbed(self.ctx.bot, 'Summary', self.header)
 		for name, value in self.fields.items():
-			embed.add_field(name=name, value=value)
+			embed.add_field(name=name, value=value, inline=False)
 
 		return embed
 
