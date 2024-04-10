@@ -189,13 +189,14 @@ def signature_command(usage: str = '', thesaurus: dict[str, list[str]] = {}):
 
 			# Invoke command
 			return_value = await func(self, ctx, dialog, summary, matched.parameters, matched.flags, matched.variables)
+
+			await dialog.cleanup()
 			if summary.send_on_return and 'quiet' not in matched.flags:
 				if 'verbose' in matched.flags:
 					await dialog.add(embed=summary.make_embed())
 				else:
 					await dialog.add(summary.header)
 
-			await dialog.cleanup()
 			ui.history.add(summary)
 			return return_value
 		
