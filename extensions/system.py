@@ -49,21 +49,35 @@ def teardown(bot: commands.Bot) -> None:
 class System(commands.Cog, name=name, description='Controls internal functionality'):
 	def __init__(self, bot: commands.Bot) -> None:
 		self.bot = bot
-
-	async def random_status(self) -> None:
-		await self.bot.wait_until_ready()
-		await self.bot.change_presence(activity=random.choice([
+		self.activities = [
 			discord.Activity(type=discord.ActivityType.watching, name='paint dry'),
 			discord.Activity(type=discord.ActivityType.watching, name='grass grow'),
+			discord.Activity(type=discord.ActivityType.watching, name='our dads kiss'),
 			discord.Activity(type=discord.ActivityType.watching, name='yall'),
+			discord.Activity(type=discord.ActivityType.watching, name='you drink paint'),
+			discord.Activity(type=discord.ActivityType.watching, name='your mom'),
+			discord.Activity(type=discord.ActivityType.watching, name='Frodo and Thorin kiss'),
+			discord.Activity(type=discord.ActivityType.watching, name='Harry Potter porn'),
 			discord.Activity(type=discord.ActivityType.playing, name='with myself'),
+			discord.Activity(type=discord.ActivityType.playing, name='HuniPop 2'),
 			discord.Activity(type=discord.ActivityType.playing, name='with your feelings'),
-			discord.Activity(type=discord.ActivityType.playing, name='with matches'),
+			discord.Activity(type=discord.ActivityType.playing, name='with fire'),
+			discord.Activity(type=discord.ActivityType.playing, name='with Gandalfs boobs'),
+			discord.Activity(type=discord.ActivityType.listening, name='bram moan'),
 			discord.Activity(type=discord.ActivityType.listening, name='the voices'),
 			discord.Activity(type=discord.ActivityType.listening, name='belly sounds'),
 			discord.Activity(type=discord.ActivityType.listening, name='static'),
-			discord.Activity(type=discord.ActivityType.competing, name='in the paralympics'),
-		]))
+			discord.Activity(type=discord.ActivityType.listening, name='Twilight fanfics'),
+			discord.Activity(type=discord.ActivityType.competing, name='ranked ARAM'),
+			discord.Activity(type=discord.ActivityType.competing, name='"dog" grooming'),
+			discord.Activity(type=discord.ActivityType.competing, name='Youtube apologies')
+		]
+
+	async def random_status(self) -> None:
+		await self.bot.wait_until_ready()
+		choice = random.choice(self.activities)
+		await self.bot.change_presence(activity=choice)
+		log.info(f'Activity set to `{choice.type.name} {choice.name}`')
 
 
 	# ---------------------> Events
@@ -88,7 +102,6 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
 		# Set random status
 		await self.random_status()
-		log.debug('Random status set')
 		log.info(f'Succesful login as {self.bot.user}')
 
 	@commands.Cog.listener()
@@ -382,28 +395,39 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 
 		# Check if random activity is requested
 		if 'random' in flags:
-			log.debug(f'Following random branch for {ctx.prefix}{ctx.command}')
+			log.debug(f'Following --random branch for {ctx.prefix}{ctx.command}')
 			await self.random_status()
 			summary.set_header('Random activity selected')
-			log.info('Random activity selected')
 			return
 
 		# Set activity
 		if 'competing' in vars:
+			log.debug(f'Following --competing branch for {ctx.prefix}{ctx.command}')
 			activity_type = discord.ActivityType.competing
+			activity = f'Competing in {vars["competing"]}'
 			name = vars['competing']
+
 		elif 'watching' in vars:
+			log.debug(f'Following --watching branch for {ctx.prefix}{ctx.command}')
 			activity_type = discord.ActivityType.watching
+			activity = f'Watching {vars["watching"]}'
 			name = vars['watching']
+
 		elif 'listening' in vars:
+			log.debug(f'Following --listening branch for {ctx.prefix}{ctx.command}')
 			activity_type = discord.ActivityType.listening
+			activity = f'Listening to {vars["listening"]}'
 			name = vars['listening']
+
 		elif 'playing' in vars:
+			log.debug(f'Following --playing branch for {ctx.prefix}{ctx.command}')
 			activity_type = discord.ActivityType.playing
+			activity = f'Playing {vars["playing"]}'
 			name = vars['playing']
 
 		await self.bot.change_presence(activity=discord.Activity(type=activity_type, name=name))
+		await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='Frodo and Thorin kiss'))
 
 		summary.set_header('New activity set')
-		summary.set_field('New activity', f'`{name}`')
-		log.info(f'Activity set to `{name}`')
+		summary.set_field('New activity', f'Bot activity set to `{activity}`')
+		log.info(f'Activity set to `{activity}`')

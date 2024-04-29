@@ -162,9 +162,9 @@ def signature_command(usage: str = '', thesaurus: dict[str, list[str]] = {}):
 				else:
 					summary.set_header('Invalid command')
 					if isinstance(err, parsing.errors.NoMatchError):
-						summary.set_field('No Matches', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` does not match the signature `{ctx.prefix}{ctx.command.name}{" " + signature.raw if signature.raw else ""}`.')
+						summary.set_field('No Matches', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` does not match the signature.')
 					elif isinstance(err, parsing.errors.TooManyMatchesError):
-						summary.set_field('Too Many Matches', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` matches the signature `{ctx.prefix}{ctx.command.name}{" " + signature.raw if signature.raw else ""}` multiple times.')
+						summary.set_field('Too Many Matches', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` matches the signature multiple times.')
 					else:
 						print(err)
 						summary.set_field('Unknown Error', f'Given command `{ctx.prefix}{ctx.command.name}{" " + command.raw if command.raw else ""}` contains an unknown error.')
