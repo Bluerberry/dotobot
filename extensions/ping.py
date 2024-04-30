@@ -86,7 +86,6 @@ class VaguePingGroup(discord.ui.View):
 			self.result = entities.PingGroup.get(id=int(self.select.values[0]))
 		self.resolved.set()
 
-
 # ---------------------> Ping cog
 
 
@@ -156,6 +155,8 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 			options = []
 			for pg in pony.select(pg for pg in entities.PingGroup):
 				options.append(utility.SearchItem(pg, pg.name))
+				for alias in pg.aliases:
+					options.append(utility.SearchItem(pg, alias))
 
 			conclusive, results = utility.fuzzy_search(options, query)
 
@@ -388,21 +389,22 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 		# Search ping groups
 		with pony.db_session:
 			name = ' '.join(params['name'])
-			
-			options = []
-			for pg in pony.select(pg for pg in entities.PingGroup):
-				options.append(utility.SearchItem(pg, pg.name))
-			conclusive, results = utility.fuzzy_search(options, name)
 
-			# If conclusive, there is another ping group with a conflicting name
-			if conclusive:
-				log.warn(f'Failed to create ping group by name of `{name}` due to conflicting ping group `{results[0].text}`')
-				summary.set_header('Failed to create ping group')
-				summary.set_field('Conflicting name', f'There already is a similar ping group with the name `{results[0].text}`. If your new ping group targets a different audience, try giving it a different name. Stupid.')
-				return
+			if pinggroups := list(entities.PingGroup.select()):
+				options = []
+				for pg in pinggroups:
+					options.append(utility.SearchItem(pg, pg.name))
+				conclusive, results = utility.fuzzy_search(options, name)
+
+				# If conclusive, there is another ping group with a conflicting name
+				if conclusive:
+					summary.set_header('Failed to create ping group')
+					summary.set_field('Conflicting name', f'There already is a similar ping group with the name `{results[0].text}`. If your new ping group targets a different audience, try giving it a different name. Stupid.')
+					log.warn(f'Failed to create ping group by name of `{name}` due to conflicting ping group `{results[0].text}`')
+					return
 
 			# Create new ping group
-			pingGroup = entities.PingGroup(name=name)
+			pingGroup = entities.PingGroup(name=name, aliases=[])
 
 		log.info(f'Created new ping group `{pingGroup.name}` ({pingGroup.id}) at the request of user `{ctx.author.name}` ({ctx.author.id})')
 		summary.set_header(f'Successfully created ping group `{pingGroup.name}`')
@@ -443,8 +445,42 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 			summary.set_header(f'Successfully deleted ping group `{db_pingGroup.name}`')
 			db_pingGroup.delete()
 
+	@ping.command(name='alias', description='Add/remove an alias to a ping group')
+	@utility.signature_command(usage='<(long-string) name> <(str) --add=alias / (str) --remove=alias> [--quiet | --verbose]')
+	async def alias(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
+		
+		# Update pings
+		if 'quiet' not in flags:
+			await dialog.set('DoSsing the Steam API...')
+		await self.update_pings(summary)
+
+		# Find ping group
+		with pony.db_session:
+			db_pingGroup = await self.find_pinggroup(' '.join(params['name']), dialog, summary)
+			if not db_pingGroup:
+				return
+
+			# Add alias
+			if 'add' in vars:
+				db_pingGroup.aliases.append(vars['add'])
+				summary.set_field('Alias added', f'Successfully added alias `{vars["add"]}` to ping group `{db_pingGroup.name}`')
+				log.info(f'Added alias `{vars["add"]}` to ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+
+			# Remove alias
+			if 'remove' in vars:
+				if vars['remove'] in db_pingGroup.aliases:
+					db_pingGroup.aliases.remove(vars['remove'])
+					summary.set_field('Alias removed', f'Successfully removed alias `{vars["remove"]}` from ping group `{db_pingGroup.name}`')
+					log.info(f'Removed alias `{vars["remove"]}` from ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+
+				else:
+					summary.set_field('Alias not found', f'Alias `{vars["remove"]}` is not an alias of ping group `{db_pingGroup.name}`')
+					log.warn(f'Failed to remove alias `{vars["remove"]}` from ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
+			
+			summary.set_header(f'Aliases modified for ping group `{db_pingGroup.name}`')
+
 	@ping.command(name='info', description='Lists info about users and ping groups')
-	@utility.signature_command(usage='[(str) --user=mention | (str) --group=name] [--quiet | --verbose]')
+	@utility.signature_command(usage='[(str) --user=mention | (str) --group=name] [--quiet | --verbose]', thesaurus={'user': ['u'], 'group': ['g']})
 	async def info(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
 		
 		# Update pings
@@ -480,8 +516,10 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 				summary.set_header(f'Info for `{db_pingGroup.name}`')
 				if steam_game:
 					summary.set_field('SteamID', f'Ping group is implicitly created from Steam game {steam_game.link}')
+				if db_pingGroup.aliases:
+					summary.set_field('Aliases', '\n'.join(db_pingGroup.aliases))
 				summary.set_field('Subscribers', '\n'.join([f'`{user.display_name}`' for user in subscribers]) if subscribers else 'No subscribers')
-		
+
 		# User info
 		else:
 			with pony.db_session:
@@ -509,4 +547,3 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 				summary.set_field('Blacklisted groups', '\n'.join(blacklists) if blacklists else 'No blacklists')
 		
 		flags.append('verbose')
-	
