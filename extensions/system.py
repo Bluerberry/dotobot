@@ -330,7 +330,6 @@ class System(commands.Cog, name=name, description='Controls internal functionali
 	@commands.command(name='status', description='Displays extension statuses by name.')
 	@utility.signature_command(usage='<(str-array) extensions | --all> [--quiet | --verbose]', thesaurus={'all': ['a']})
 	async def status(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
-		print('entered command')
 		known  = list(utility.yield_extensions(prefix_path=True))
 		loaded = list(self.bot.extensions.keys())
 

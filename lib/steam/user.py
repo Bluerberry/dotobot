@@ -19,7 +19,7 @@ class User:
 		try:
 			userdata = rawdata['response']['players'][0]
 		except IndexError:
-			raise errors.UserNotFoundError('The specified user could not be found')
+			raise errors.UserNotFoundError()
 
 		# Store data
 		self.lazy = lazy

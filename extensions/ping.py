@@ -442,3 +442,71 @@ class Ping(commands.Cog, name=name, description='Better ping utility'):
 			log.info(f'Successfully deleted ping group `{db_pingGroup.name}` ({db_pingGroup.id})')
 			summary.set_header(f'Successfully deleted ping group `{db_pingGroup.name}`')
 			db_pingGroup.delete()
+
+	@ping.command(name='info', description='Lists info about users and ping groups')
+	@utility.signature_command(usage='[(str) --user=mention | (str) --group=name] [--quiet | --verbose]')
+	async def info(self, ctx: commands.Context, dialog: utility.Dialog, summary: utility.Summary, params: dict[str, Any], flags: list[str], vars: dict[str, Any]) -> None:
+		
+		# Update pings
+		if 'quiet' not in flags:
+			await dialog.set('DoSsing the Steam API...')
+		await self.update_pings(summary)
+
+		# Pingroup info
+		if 'group' in vars:
+			log.debug(f'Following group branch for {ctx.prefix}{ctx.command}')
+
+			with pony.db_session:
+
+				# Find ping group
+				db_pingGroup = await self.find_pinggroup(vars['group'], dialog, summary)
+				if not db_pingGroup:
+					return
+				
+				steam_game = self.steam.getGame(db_pingGroup.steam_id) if db_pingGroup.steam_id else None
+				
+				# Find subscribers
+				subscribers = []
+				for db_user in entities.User.select():
+					if db_pingGroup.id in db_user.whitelisted_pings:
+						subscribers.append(ctx.guild.get_member(db_user.discord_id))
+
+					elif db_user.steam_id and db_pingGroup.steam_id and db_pingGroup.id not in db_user.blacklisted_pings:
+						steam_user = self.steam.getUser(db_user.steam_id)
+						if db_pingGroup.steam_id in [game.id for game in steam_user.games]:
+							subscribers.append(ctx.guild.get_member(db_user.discord_id))
+
+				# Build info message
+				summary.set_header(f'Info for `{db_pingGroup.name}`')
+				if steam_game:
+					summary.set_field('SteamID', f'Ping group is implicitly created from Steam game {steam_game.link}')
+				summary.set_field('Subscribers', '\n'.join([f'`{user.display_name}`' for user in subscribers]) if subscribers else 'No subscribers')
+		
+		# User info
+		else:
+			with pony.db_session:
+				if 'user' in vars:
+					log.debug(f'Following user branch for {ctx.prefix}{ctx.command}')
+					discord_user = await ctx.guild.fetch_member(utility.id_from_mention(vars['user']))
+					
+				else:
+					log.debug(f'Following author branch for {ctx.prefix}{ctx.command}')
+					discord_user = ctx.author
+
+				db_user = entities.User.get(discord_id=discord_user.id)
+				steam_user = self.steam.getUser(db_user.steam_id) if db_user.steam_id else None
+
+				# Find subscriptions
+				subscriptions = [pg.name for pg in entities.PingGroup.select(lambda pg: pg.id in db_user.whitelisted_pings)]
+
+				# Find blacklists
+				blacklists = [pg.name for pg in entities.PingGroup.select(lambda pg: pg.id in db_user.blacklisted_pings)]
+
+				# Build info message
+				summary.set_header(f'Info for `{discord_user.display_name}`')
+				summary.set_field('SteamID', f'Steam account `{steam_user.name}` linked to user. They are implicitly subscribed to all games in their library, unless explicitly blacklisted.' if steam_user else 'No Steam account linked')
+				summary.set_field('Subscriptions', '\n'.join(subscriptions) if subscriptions else 'No subscriptions')
+				summary.set_field('Blacklisted groups', '\n'.join(blacklists) if blacklists else 'No blacklists')
+		
+		flags.append('verbose')
+	

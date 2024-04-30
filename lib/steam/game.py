@@ -11,6 +11,7 @@ from . import errors
 
 class Game:
 	def __init__(self, id: int, lazy: bool=True) -> None:
+		self.link = f'https://store.steampowered.com/app/{id}'
 		self.lazy = lazy
 		self.id = id
 
