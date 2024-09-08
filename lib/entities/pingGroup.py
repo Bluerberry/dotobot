@@ -12,5 +12,5 @@ from .database import db
 class PingGroup(db.Entity):
 	id = PrimaryKey(int, auto=True)
 	name = Required(str, unique=True)
-	aliases = Required(StrArray)
+	aliases = Optional(StrArray)
 	steam_id = Optional(int, unique=True)

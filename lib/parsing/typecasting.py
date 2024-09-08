@@ -6,7 +6,7 @@ from typing import Any, Tuple, Literal
 from . import errors
 
 # Constants
-VALID_TYPES = ['any', 'any-array', 'int', 'int-array', 'float', 'float-array', 'str', 'long-string', 'str-array', 'bool', 'bool-array']
+VALID_TYPES = ['any', 'any-array', 'int', 'int-array', 'float', 'float-array', 'str', 'str-array', 'bool', 'bool-array', 'long-string']
 
 
 # ---------------------> Functions
@@ -31,11 +31,11 @@ def cast(raw: Any) -> Tuple[Any, Literal['str', 'int', 'float', 'bool']]:
 		else:
 			return raw, 'str'
 
-def parse(raw: str) -> Tuple[Literal['str', 'int', 'float', 'bool'], bool]:
-	"""Parses a raw type and returns the type and if it is an array."""
+def parse(raw: str) -> Tuple[Literal['any', 'str', 'int', 'float', 'bool'], bool, bool]:
+	"""Parses a raw type and returns the type, if it is an array, and if it is a long string."""
 
 	if raw in VALID_TYPES:
 		if raw == 'long-string':
-			return 'any', True
-		return raw.replace('-array', ''), '-array' in raw
+			return 'str', False, True
+		return raw.replace('-array', ''), '-array' in raw, False
 	raise errors.UnknownTypeError(raw)

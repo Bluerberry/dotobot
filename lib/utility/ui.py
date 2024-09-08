@@ -20,12 +20,12 @@ class ContinueAbortMenu(discord.ui.View):
 		self.responded = asyncio.Event()
 		self.result = None
 
-	async def await_response(self) -> bool:
+	async def response(self) -> bool:
 		await self.responded.wait()
 		return self.result
 
 	@discord.ui.button(label='Continue', style=discord.ButtonStyle.green, emoji='🚶‍♂️')
-	async def override(self, _, interaction: discord.Interaction) -> None:
+	async def continue_button(self, _, interaction: discord.Interaction) -> None:
 		if self.authorised_user != None and self.authorised_user != interaction.user:
 			await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
 			return
@@ -36,7 +36,7 @@ class ContinueAbortMenu(discord.ui.View):
 		self.responded.set()
 
 	@discord.ui.button(label='Abort', style=discord.ButtonStyle.red, emoji='👶')
-	async def abort(self, _, interaction: discord.Interaction) -> None:
+	async def abort_button(self, _, interaction: discord.Interaction) -> None:
 		if self.authorised_user != None and self.authorised_user != interaction.user:
 			await interaction.response.send_message('You are not authorised to do that.', ephemeral=True)
 			return

@@ -47,10 +47,11 @@ class Group(Token):
 
 @dataclass
 class Parameter(Token):
-	key        : str
-	value_type : Literal['str', 'int', 'float', 'bool', 'any']
-	is_array   : bool
-	required   : bool = True
+	key           : str
+	value_type    : Literal['str', 'int', 'float', 'bool', 'any']
+	is_array      : bool
+	is_longstring : bool
+	required      : bool = True
 
 	def __str__(self) -> str:
 		return f'Parameter({self.key}, {self.value_type}{"-array" if self.is_array else ""}, {"required" if self.required else "optional"})'
@@ -160,6 +161,7 @@ class Signature:
 			# Assign variables
 			expect_typed  = False
 			is_array      = False
+			is_longstring = False
 			object_type   = 'any'
 			group_type    = 'and'
 			result, group = [], []
@@ -214,7 +216,9 @@ class Signature:
 						token = tokens.pop(0)
 						if type(token) == tokenizer.Operator and token.operator == 'close-type':
 							raise errors.ExpectedTokenError()
-						object_type, is_array = typecasting.parse(token.raw)
+						
+						# Parse type
+						object_type, is_array, is_longstring = typecasting.parse(token.raw)
 						expect_typed = True
 
 						# Consume close-type
@@ -299,8 +303,8 @@ class Signature:
 
 				# Handle parameter
 				elif type(token) == tokenizer.Token:
-					group.append(Parameter(token.raw, object_type, is_array))
-					object_type, is_array, expect_typed = 'any', False, False
+					group.append(Parameter(token.raw, object_type, is_array, is_longstring))
+					object_type, is_array, is_longstring, expect_typed = 'any', False, False, False
 				
 				# Handle unknown objects
 				else:
@@ -338,8 +342,15 @@ class Signature:
 			# Handle parameters
 			if type(slot) == Parameter:
 
+				# Handle long strings
+				if slot.is_longstring:
+					if cmd.parameters:
+						matched.add(slot, command.Parameter(' '.join([str(parameter.value) for parameter in cmd.parameters]), 'str'))
+						cmd.parameters = []
+						return True
+
 				# Handle array parameters
-				if slot.is_array:
+				elif slot.is_array:
 					values = []
 
 					while cmd.parameters:
